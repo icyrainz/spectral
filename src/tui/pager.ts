@@ -14,8 +14,6 @@ interface Chunk {
   text: string;
   fg?: string;
   bg?: string;
-  bold?: boolean;
-  dim?: boolean;
 }
 
 function padLineNum(n: number): string {
@@ -35,8 +33,8 @@ function threadHint(thread: Thread): string {
 /**
  * Split text into styled chunks with search matches highlighted (inverted colors).
  */
-function highlightSearch(text: string, query: string, baseFg: string, baseBold?: boolean): Chunk[] {
-  if (!query) return [{ text, fg: baseFg, bold: baseBold }];
+function highlightSearch(text: string, query: string, baseFg: string): Chunk[] {
+  if (!query) return [{ text, fg: baseFg }];
 
   const lowerText = text.toLowerCase();
   const lowerQuery = query.toLowerCase();
@@ -48,23 +46,22 @@ function highlightSearch(text: string, query: string, baseFg: string, baseBold?:
     if (idx === -1) break;
 
     if (idx > lastIndex) {
-      chunks.push({ text: text.slice(lastIndex, idx), fg: baseFg, bold: baseBold });
+      chunks.push({ text: text.slice(lastIndex, idx), fg: baseFg });
     }
     chunks.push({
       text: text.slice(idx, idx + query.length),
       fg: theme.base,
       bg: theme.yellow,
-      bold: true,
     });
     lastIndex = idx + query.length;
   }
 
   if (lastIndex < text.length) {
-    chunks.push({ text: text.slice(lastIndex), fg: baseFg, bold: baseBold });
+    chunks.push({ text: text.slice(lastIndex), fg: baseFg });
   }
 
   if (chunks.length === 0) {
-    chunks.push({ text, fg: baseFg, bold: baseBold });
+    chunks.push({ text, fg: baseFg });
   }
 
   return chunks;
@@ -73,7 +70,7 @@ function highlightSearch(text: string, query: string, baseFg: string, baseBold?:
 /**
  * Determine the color/style for a markdown line.
  */
-function getMarkdownStyle(line: string, inCodeBlock: boolean): { fg: string; bold?: boolean } {
+function getMarkdownStyle(line: string, inCodeBlock: boolean): { fg: string } {
   if (line.trimStart().startsWith("```")) {
     return { fg: theme.overlay };
   }
@@ -81,7 +78,7 @@ function getMarkdownStyle(line: string, inCodeBlock: boolean): { fg: string; bol
     return { fg: theme.green };
   }
   if (line.match(/^#{1,6}\s/)) {
-    return { fg: theme.blue, bold: true };
+    return { fg: theme.blue };
   }
   if (line.match(/^\s*[-*]\s/)) {
     return { fg: theme.yellow };
@@ -118,8 +115,8 @@ export function buildStyledPagerContent(state: ReviewState, searchQuery?: string
     // Line content: markdown style + search highlighting
     const style = getMarkdownStyle(rawLine, inCodeBlock && !isFence);
     const contentChunks = searchQuery
-      ? highlightSearch(rawLine, searchQuery, style.fg, style.bold)
-      : [{ text: rawLine, fg: style.fg, bold: style.bold }];
+      ? highlightSearch(rawLine, searchQuery, style.fg)
+      : [{ text: rawLine, fg: style.fg }];
     allChunks.push(...contentChunks);
 
     // Thread indicator
@@ -127,7 +124,7 @@ export function buildStyledPagerContent(state: ReviewState, searchQuery?: string
       const icon = STATUS_ICONS[thread.status];
       const hint = threadHint(thread);
       allChunks.push({ text: `  ${icon} `, fg: theme.overlay });
-      allChunks.push({ text: hint, fg: theme.overlay, dim: true });
+      allChunks.push({ text: hint, fg: theme.overlay });
     }
   }
 
