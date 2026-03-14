@@ -94,6 +94,12 @@ export function createThreadExpand(opts: ThreadExpandOptions): ThreadExpandOverl
   container.add(scrollBox);
   container.add(hint);
 
+  // Scroll to bottom to show latest message (AI reply)
+  setTimeout(() => {
+    scrollBox.scrollTo(scrollBox.scrollHeight);
+    renderer.requestRender();
+  }, 0);
+
   // Key handler
   const keyHandler = (key: KeyEvent) => {
     if (key.name === "q" || key.name === "escape") {
