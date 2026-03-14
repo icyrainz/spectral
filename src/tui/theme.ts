@@ -27,8 +27,8 @@ export const theme = {
 } as const;
 
 export const STATUS_ICONS: Record<string, string> = {
-  open: "\u{1F4AC}",
-  pending: "\u{1F535}",
+  open: "*",
+  pending: "~",
   resolved: "\u2714",
   outdated: "\u26A0",
 };

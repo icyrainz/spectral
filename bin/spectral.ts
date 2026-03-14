@@ -13,6 +13,11 @@ if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
   process.exit(0);
 }
 
+if (args.includes("--version") || args.includes("-v")) {
+  console.log("spectral 0.1.0");
+  process.exit(0);
+}
+
 const specFile = args.find((a) => !a.startsWith("--"));
 if (!specFile) {
   console.error("Error: No spec file provided");

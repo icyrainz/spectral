@@ -58,7 +58,7 @@ export function createHelp(opts: {
     top: "10%",
     left: "20%",
     width: "60%",
-    height: 26,
+    height: Math.min(26, renderer.height - 2),
     zIndex: 100,
     backgroundColor: theme.base,
     border: true,

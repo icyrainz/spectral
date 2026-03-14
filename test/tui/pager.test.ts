@@ -50,8 +50,8 @@ describe("buildPagerContent", () => {
     const content = buildPagerContent(state);
     const lines = content.split("\n");
 
-    // Line 2 should contain the open icon (speech balloon)
-    expect(lines[1]).toContain("\u{1F4AC}");
+    // Line 2 should contain the open icon (*)
+    expect(lines[1]).toContain("*");
   });
 
   it("shows status indicator for pending threads", () => {
@@ -59,7 +59,7 @@ describe("buildPagerContent", () => {
     const content = buildPagerContent(state);
     const lines = content.split("\n");
 
-    expect(lines[1]).toContain("\u{1F535}");
+    expect(lines[1]).toContain("~");
   });
 
   it("shows status indicator for resolved threads", () => {
@@ -88,8 +88,8 @@ describe("buildPagerContent", () => {
     const content = buildPagerContent(state);
     const lines = content.split("\n");
 
-    expect(lines[0]).toContain("\u{1F4AC}");
-    expect(lines[1]).toContain("\u{1F535}");
+    expect(lines[0]).toContain("*");
+    expect(lines[1]).toContain("~");
     expect(lines[2]).toContain("\u2714");
     expect(lines[3]).toContain("\u26A0");
   });

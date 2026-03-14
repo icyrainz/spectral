@@ -349,6 +349,9 @@ export async function runTui(
 
       // Ctrl+C to exit
       if (key.ctrl && key.name === "c") {
+        if (hasUnsavedChanges) {
+          saveDraft();
+        }
         renderer.destroy();
         resolve();
         return;
