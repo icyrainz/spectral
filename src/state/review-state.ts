@@ -43,7 +43,12 @@ export class ReviewState {
   resolveThread(threadId: string): void {
     const thread = this.threads.find((t) => t.id === threadId);
     if (!thread) return;
-    thread.status = "resolved";
+    // Toggle: resolved → open, anything else → resolved
+    if (thread.status === "resolved") {
+      thread.status = "open";
+    } else {
+      thread.status = "resolved";
+    }
   }
 
   resolveAllPending(): void {

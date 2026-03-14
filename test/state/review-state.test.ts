@@ -83,6 +83,12 @@ describe("ReviewState", () => {
       expect(state.threads[0].status).toBe("resolved");
     });
 
+    it("toggles resolved thread back to open", () => {
+      const state = new ReviewState(SPEC, [makeThread("t1", 1, "resolved")]);
+      state.resolveThread("t1");
+      expect(state.threads[0].status).toBe("open");
+    });
+
     it("does nothing for unknown threadId", () => {
       const state = new ReviewState(SPEC, [makeThread("t1", 1, "open")]);
       state.resolveThread("t99");
