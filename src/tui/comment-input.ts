@@ -30,7 +30,7 @@ const MAX_CONTEXT_LENGTH = 80;
  * - New comment: just a text input
  * - Existing thread: scrollable conversation + reply input + resolve action
  *
- * Ctrl+S submits reply, r resolves, Esc cancels.
+ * Tab submits, Ctrl+R resolves, Esc cancels.
  */
 export function createCommentInput(opts: CommentInputOptions): CommentInputOverlay {
   const { renderer, line, existingThread, onSubmit, onResolve, onCancel } = opts;
