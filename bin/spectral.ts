@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { existsSync, unlinkSync } from "fs";
+import { existsSync, unlinkSync, readFileSync } from "fs";
 import { resolve, basename, extname, dirname, join } from "path";
 import { readReviewFile, readDraftFile } from "../src/protocol/read";
 import { writeReviewFile } from "../src/protocol/write";
@@ -37,7 +37,7 @@ const draftPath = join(specDir, `${specBase}.review.draft.json`);
 if (existsSync(draftPath)) {
   let raw: string;
   try {
-    raw = require("fs").readFileSync(draftPath, "utf8");
+    raw = readFileSync(draftPath, "utf8");
   } catch {
     raw = "";
   }
@@ -82,14 +82,8 @@ if (existsSync(draftPath)) {
     writeReviewFile(reviewPath, merged);
     unlinkSync(draftPath);
 
-    // Output review path if new comments were added OR review has open/pending threads
-    const hasNewComments = true; // draft had threads, so new comments were added
-    const hasOpenOrPending = merged.threads.some(
-      (t) => t.status === "open" || t.status === "pending"
-    );
-    if (hasNewComments || hasOpenOrPending) {
-      process.stdout.write(`${reviewPath}\n`);
-    }
+    // Output review path — draft had threads, so new comments were added
+    process.stdout.write(`${reviewPath}\n`);
     process.exit(0);
   }
 }
