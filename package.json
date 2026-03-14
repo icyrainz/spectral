@@ -1,0 +1,22 @@
+{
+  "name": "spectral",
+  "version": "0.1.0",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "spectral": "./bin/spectral.ts"
+  },
+  "scripts": {
+    "start": "bun run bin/spectral.ts",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.1.87"
+  }
+}
