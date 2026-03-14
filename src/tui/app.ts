@@ -10,7 +10,7 @@ import { writeDraftFile } from "../protocol/write";
 import { mergeDraftIntoReview } from "../protocol/merge";
 import type { Thread } from "../protocol/types";
 import { ReviewState } from "../state/review-state";
-import { buildStyledPagerContent, createPager, type PagerComponents } from "./pager";
+import { buildGutterContent, createPager, type PagerComponents } from "./pager";
 import {
   buildTopBarText,
   buildBottomBarText,
@@ -81,8 +81,10 @@ export async function runTui(
 
   // 6. Initial render
   function refreshPager(): void {
-    const styledContent = buildStyledPagerContent(state, searchQuery);
-    pager.textNode.content = styledContent;
+    // Update gutter (line numbers + thread indicators)
+    pager.gutterNode.content = buildGutterContent(state);
+    // Update markdown content (raw spec file)
+    pager.markdownNode.content = state.specLines.join("\n");
     topBar.bar.content = buildTopBarText(specFile, state);
     bottomBar.bar.content = buildBottomBarText(commandBuffer);
     renderer.requestRender();

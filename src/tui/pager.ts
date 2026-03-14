@@ -2,19 +2,14 @@ import type { ReviewState } from "../state/review-state";
 import type { Thread } from "../protocol/types";
 import {
   ScrollBoxRenderable,
+  BoxRenderable,
   TextRenderable,
-  StyledText,
+  MarkdownRenderable,
   type CliRenderer,
 } from "@opentui/core";
 import { theme, STATUS_ICONS } from "./theme";
 
 const MAX_HINT_LENGTH = 40;
-
-interface Chunk {
-  text: string;
-  fg?: string;
-  bg?: string;
-}
 
 function padLineNum(n: number): string {
   const s = String(n);
@@ -31,108 +26,35 @@ function threadHint(thread: Thread): string {
 }
 
 /**
- * Split text into styled chunks with search matches highlighted (inverted colors).
+ * Build the gutter content (line numbers + cursor + thread indicators).
+ * This is plain text displayed in a narrow left column.
  */
-function highlightSearch(text: string, query: string, baseFg: string): Chunk[] {
-  if (!query) return [{ text, fg: baseFg }];
-
-  const lowerText = text.toLowerCase();
-  const lowerQuery = query.toLowerCase();
-  const chunks: Chunk[] = [];
-  let lastIndex = 0;
-
-  while (lastIndex < text.length) {
-    const idx = lowerText.indexOf(lowerQuery, lastIndex);
-    if (idx === -1) break;
-
-    if (idx > lastIndex) {
-      chunks.push({ text: text.slice(lastIndex, idx), fg: baseFg });
-    }
-    chunks.push({
-      text: text.slice(idx, idx + query.length),
-      fg: theme.base,
-      bg: theme.yellow,
-    });
-    lastIndex = idx + query.length;
-  }
-
-  if (lastIndex < text.length) {
-    chunks.push({ text: text.slice(lastIndex), fg: baseFg });
-  }
-
-  if (chunks.length === 0) {
-    chunks.push({ text, fg: baseFg });
-  }
-
-  return chunks;
-}
-
-/**
- * Determine the color/style for a markdown line.
- */
-function getMarkdownStyle(line: string, inCodeBlock: boolean): { fg: string } {
-  if (line.trimStart().startsWith("```")) {
-    return { fg: theme.overlay };
-  }
-  if (inCodeBlock) {
-    return { fg: theme.green };
-  }
-  if (line.match(/^#{1,6}\s/)) {
-    return { fg: theme.blue };
-  }
-  if (line.match(/^\s*[-*]\s/)) {
-    return { fg: theme.yellow };
-  }
-  return { fg: theme.text };
-}
-
-/**
- * Build the pager content as a StyledText with colored chunks.
- * Supports: markdown formatting, search highlighting (inverted), thread indicators.
- */
-export function buildStyledPagerContent(state: ReviewState, searchQuery?: string | null): StyledText {
-  const allChunks: Chunk[] = [];
-  let inCodeBlock = false;
+export function buildGutterContent(state: ReviewState): string {
+  const lines: string[] = [];
 
   for (let i = 0; i < state.specLines.length; i++) {
     const lineNum = i + 1;
     const thread = state.threadAtLine(lineNum);
     const isCursor = lineNum === state.cursorLine;
 
-    if (i > 0) allChunks.push({ text: "\n" });
+    const prefix = isCursor ? ">" : " ";
+    let gutter = `${prefix}${padLineNum(lineNum)}`;
 
-    // Cursor marker
-    allChunks.push({ text: isCursor ? ">" : " ", fg: isCursor ? theme.yellow : theme.text });
-
-    // Line number
-    allChunks.push({ text: padLineNum(lineNum) + "  ", fg: theme.overlay });
-
-    // Code fence toggle
-    const rawLine = state.specLines[i];
-    const isFence = rawLine.trimStart().startsWith("```");
-    if (isFence) inCodeBlock = !inCodeBlock;
-
-    // Line content: markdown style + search highlighting
-    const style = getMarkdownStyle(rawLine, inCodeBlock && !isFence);
-    const contentChunks = searchQuery
-      ? highlightSearch(rawLine, searchQuery, style.fg)
-      : [{ text: rawLine, fg: style.fg }];
-    allChunks.push(...contentChunks);
-
-    // Thread indicator
     if (thread) {
       const icon = STATUS_ICONS[thread.status];
-      const hint = threadHint(thread);
-      allChunks.push({ text: `  ${icon} `, fg: theme.overlay });
-      allChunks.push({ text: hint, fg: theme.overlay });
+      gutter += ` ${icon}`;
+    } else {
+      gutter += "   ";
     }
+
+    lines.push(gutter);
   }
 
-  return new StyledText(allChunks);
+  return lines.join("\n");
 }
 
 /**
- * Plain text version for testing (no StyledText dependency).
+ * Build plain text pager content (for testing and fallback).
  */
 export function buildPagerContent(state: ReviewState, searchQuery?: string | null): string {
   const lines: string[] = [];
@@ -166,21 +88,42 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
 
 export interface PagerComponents {
   scrollBox: ScrollBoxRenderable;
-  textNode: TextRenderable;
+  gutterNode: TextRenderable;
+  markdownNode: MarkdownRenderable;
 }
 
+const GUTTER_WIDTH = 10;
+
 /**
- * Create the pager ScrollBox + Text renderable pair.
+ * Create the pager with a gutter (line numbers + indicators) and markdown content.
  */
 export function createPager(renderer: CliRenderer): PagerComponents {
-  const textNode = new TextRenderable(renderer, {
+  // Gutter — line numbers and thread indicators
+  const gutterNode = new TextRenderable(renderer, {
     content: "",
-    width: "100%",
+    width: GUTTER_WIDTH,
     wrapMode: "none",
-    fg: theme.text,
+    fg: theme.overlay,
     bg: theme.base,
   });
 
+  // Markdown content
+  const markdownNode = new MarkdownRenderable(renderer, {
+    content: "",
+    width: "100%",
+    flexGrow: 1,
+  });
+
+  // Row container for side-by-side layout
+  const row = new BoxRenderable(renderer, {
+    width: "100%",
+    flexDirection: "row",
+    flexGrow: 1,
+  });
+  row.add(gutterNode);
+  row.add(markdownNode);
+
+  // Scrollable container
   const scrollBox = new ScrollBoxRenderable(renderer, {
     width: "100%",
     flexGrow: 1,
@@ -190,7 +133,7 @@ export function createPager(renderer: CliRenderer): PagerComponents {
     backgroundColor: theme.base,
   });
 
-  scrollBox.add(textNode);
+  scrollBox.add(row);
 
-  return { scrollBox, textNode };
+  return { scrollBox, gutterNode, markdownNode };
 }
