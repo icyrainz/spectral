@@ -2,7 +2,6 @@ import type { ReviewState } from "../state/review-state";
 import type { Thread } from "../protocol/types";
 import {
   ScrollBoxRenderable,
-  BoxRenderable,
   TextRenderable,
   MarkdownRenderable,
   SyntaxStyle,
@@ -28,35 +27,8 @@ function threadHint(thread: Thread): string {
 }
 
 /**
- * Build the gutter content (line numbers + cursor + thread indicators).
- * This is plain text displayed in a narrow left column.
- */
-export function buildGutterContent(state: ReviewState): string {
-  const lines: string[] = [];
-
-  for (let i = 0; i < state.specLines.length; i++) {
-    const lineNum = i + 1;
-    const thread = state.threadAtLine(lineNum);
-    const isCursor = lineNum === state.cursorLine;
-
-    const prefix = isCursor ? ">" : " ";
-    let gutter = `${prefix}${padLineNum(lineNum)}`;
-
-    if (thread) {
-      const icon = STATUS_ICONS[thread.status];
-      gutter += ` ${icon}`;
-    } else {
-      gutter += "   ";
-    }
-
-    lines.push(gutter);
-  }
-
-  return lines.join("\n");
-}
-
-/**
- * Build plain text pager content (for testing and fallback).
+ * Build plain text line-mode content (for commenting).
+ * Each line: cursor marker + lineNum + content + thread indicator + hint.
  */
 export function buildPagerContent(state: ReviewState, searchQuery?: string | null): string {
   const lines: string[] = [];
@@ -88,14 +60,6 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
   return lines.join("\n");
 }
 
-export interface PagerComponents {
-  scrollBox: ScrollBoxRenderable;
-  gutterNode: TextRenderable;
-  markdownNode: MarkdownRenderable;
-}
-
-const GUTTER_WIDTH = 10;
-
 function createMarkdownStyle(): SyntaxStyle {
   return SyntaxStyle.fromStyles({
     default: { fg: parseColor(theme.text) },
@@ -120,36 +84,38 @@ function createMarkdownStyle(): SyntaxStyle {
   });
 }
 
+export interface PagerComponents {
+  scrollBox: ScrollBoxRenderable;
+  /** Plain text node for line mode */
+  lineNode: TextRenderable;
+  /** Rendered markdown node for reading mode */
+  markdownNode: MarkdownRenderable;
+  /** Current mode */
+  mode: "markdown" | "line";
+}
+
 /**
- * Create the pager with a gutter (line numbers + indicators) and markdown content.
+ * Create the pager with both a markdown view and a line-mode view.
+ * Only one is visible at a time. Toggle with `m`.
  */
 export function createPager(renderer: CliRenderer): PagerComponents {
-  // Gutter — line numbers and thread indicators
-  const gutterNode = new TextRenderable(renderer, {
+  // Line mode — plain text with line numbers, cursor, thread indicators
+  const lineNode = new TextRenderable(renderer, {
     content: "",
-    width: GUTTER_WIDTH,
+    width: "100%",
     wrapMode: "none",
-    fg: theme.overlay,
+    fg: theme.text,
     bg: theme.base,
+    visible: false, // hidden by default — markdown mode is default
   });
 
-  // Markdown content with syntax styling
+  // Markdown mode — rendered markdown, full-width, beautiful reading
   const markdownNode = new MarkdownRenderable(renderer, {
     content: "",
     width: "100%",
-    flexGrow: 1,
     syntaxStyle: createMarkdownStyle(),
     conceal: true,
   });
-
-  // Row container for side-by-side layout
-  const row = new BoxRenderable(renderer, {
-    width: "100%",
-    flexDirection: "row",
-    flexGrow: 1,
-  });
-  row.add(gutterNode);
-  row.add(markdownNode);
 
   // Scrollable container
   const scrollBox = new ScrollBoxRenderable(renderer, {
@@ -161,7 +127,32 @@ export function createPager(renderer: CliRenderer): PagerComponents {
     backgroundColor: theme.base,
   });
 
-  scrollBox.add(row);
+  scrollBox.add(markdownNode);
+  scrollBox.add(lineNode);
 
-  return { scrollBox, gutterNode, markdownNode };
+  return { scrollBox, lineNode, markdownNode, mode: "markdown" };
+}
+
+/**
+ * Toggle between markdown and line mode.
+ */
+export function togglePagerMode(pager: PagerComponents): void {
+  if (pager.mode === "markdown") {
+    pager.mode = "line";
+    pager.markdownNode.visible = false;
+    pager.lineNode.visible = true;
+  } else {
+    pager.mode = "markdown";
+    pager.lineNode.visible = false;
+    pager.markdownNode.visible = true;
+  }
+}
+
+/**
+ * Switch to line mode (for commenting).
+ */
+export function ensureLineMode(pager: PagerComponents): void {
+  if (pager.mode !== "line") {
+    togglePagerMode(pager);
+  }
 }

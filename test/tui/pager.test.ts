@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildPagerContent, buildGutterContent } from "../../src/tui/pager";
+import { buildPagerContent } from "../../src/tui/pager";
 import { ReviewState } from "../../src/state/review-state";
 import type { Thread } from "../../src/protocol/types";
 
@@ -182,34 +182,3 @@ describe("buildPagerContent", () => {
   });
 });
 
-describe("buildGutterContent", () => {
-  it("renders line numbers", () => {
-    const state = new ReviewState(SPEC, []);
-    const content = buildGutterContent(state);
-    const lines = content.split("\n");
-    expect(lines).toHaveLength(4);
-    expect(lines[0]).toContain("1");
-    expect(lines[1]).toContain("2");
-  });
-
-  it("shows cursor marker on current line", () => {
-    const state = new ReviewState(SPEC, []);
-    state.cursorLine = 2;
-    const content = buildGutterContent(state);
-    const lines = content.split("\n");
-    expect(lines[1]).toMatch(/^>/);
-    expect(lines[0]).toMatch(/^ /);
-  });
-
-  it("shows thread status icons", () => {
-    const state = new ReviewState(SPEC, [
-      makeThread("t1", 2, "open"),
-      makeThread("t2", 3, "pending"),
-    ]);
-    const content = buildGutterContent(state);
-    const lines = content.split("\n");
-    expect(lines[1]).toContain("\u{1F4AC}");
-    expect(lines[2]).toContain("\u{1F535}");
-    expect(lines[0]).not.toContain("\u{1F4AC}");
-  });
-});

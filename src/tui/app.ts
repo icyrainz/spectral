@@ -10,7 +10,7 @@ import { writeDraftFile } from "../protocol/write";
 import { mergeDraftIntoReview } from "../protocol/merge";
 import type { Thread } from "../protocol/types";
 import { ReviewState } from "../state/review-state";
-import { buildGutterContent, createPager, type PagerComponents } from "./pager";
+import { buildPagerContent, createPager, togglePagerMode, ensureLineMode, type PagerComponents } from "./pager";
 import {
   buildTopBarText,
   buildBottomBarText,
@@ -81,11 +81,13 @@ export async function runTui(
 
   // 6. Initial render
   function refreshPager(): void {
-    // Update gutter (line numbers + thread indicators)
-    pager.gutterNode.content = buildGutterContent(state);
-    // Update markdown content (raw spec file)
-    pager.markdownNode.content = state.specLines.join("\n");
-    topBar.bar.content = buildTopBarText(specFile, state);
+    if (pager.mode === "line") {
+      pager.lineNode.content = buildPagerContent(state, searchQuery);
+    } else {
+      pager.markdownNode.content = state.specLines.join("\n");
+    }
+    const modeLabel = pager.mode === "markdown" ? "[md]" : "[line]";
+    topBar.bar.content = buildTopBarText(specFile, state) + `  ${modeLabel}`;
     bottomBar.bar.content = buildBottomBarText(commandBuffer);
     renderer.requestRender();
   }
@@ -472,13 +474,23 @@ export async function runTui(
           refreshPager();
           break;
         }
+        case "m": {
+          // Toggle markdown / line mode
+          togglePagerMode(pager);
+          refreshPager();
+          break;
+        }
         case "c": {
-          // Comment: new or reply
+          // Comment: new or reply — auto-switch to line mode
+          ensureLineMode(pager);
+          refreshPager();
           showCommentInput();
           break;
         }
         case "e": {
-          // Expand thread at cursor
+          // Expand thread at cursor — needs line mode
+          ensureLineMode(pager);
+          refreshPager();
           showThreadExpandOverlay();
           break;
         }
