@@ -99,9 +99,10 @@ export function createSearch(opts: SearchOptions): SearchOverlay {
         }
       }
 
-      // No match found — show "No match" in red, keep search open
-      label.content = " No match ";
-      label.fg = theme.red;
+      // No match found — show feedback in the input placeholder, keep search open
+      input.placeholder = "No match";
+      input.placeholderColor = theme.red;
+      input.value = "";
       renderer.requestRender();
       return;
     }

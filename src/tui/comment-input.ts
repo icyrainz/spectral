@@ -28,7 +28,7 @@ const MAX_CONTEXT_LENGTH = 80;
  * - If no existing thread: "New comment on line N"
  * - If existing thread: "Reply to thread #N" with last message context
  *
- * Ctrl+Enter submits, Esc cancels.
+ * Ctrl+S submits, Esc cancels.
  */
 export function createCommentInput(opts: CommentInputOptions): CommentInputOverlay {
   const { renderer, line, existingThread, onSubmit, onCancel } = opts;

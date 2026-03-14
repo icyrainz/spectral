@@ -82,7 +82,7 @@ export function createThreadExpand(opts: ThreadExpandOptions): ThreadExpandOverl
 
   // Action hint bar
   const hint = new TextRenderable(renderer, {
-    content: " [r] resolve  [c] reply  [q/Esc] close",
+    content: " [r] resolve  [c] reply  [j/k] scroll  [q/Esc] close",
     width: "100%",
     height: 1,
     fg: theme.hintFg,
@@ -112,6 +112,20 @@ export function createThreadExpand(opts: ThreadExpandOptions): ThreadExpandOverl
       key.preventDefault();
       key.stopPropagation();
       onContinue();
+      return;
+    }
+    if (key.name === "j" || key.name === "down") {
+      key.preventDefault();
+      key.stopPropagation();
+      scrollBox.scrollBy(1);
+      renderer.requestRender();
+      return;
+    }
+    if (key.name === "k" || key.name === "up") {
+      key.preventDefault();
+      key.stopPropagation();
+      scrollBox.scrollBy(-1);
+      renderer.requestRender();
       return;
     }
   };

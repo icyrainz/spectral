@@ -149,7 +149,7 @@ export async function runTui(
 
   // Helper: get page size (terminal height minus bars)
   function pageSize(): number {
-    return Math.max(1, renderer.height - 4);
+    return Math.max(1, renderer.height - 2);
   }
 
   // Process command buffer input
@@ -158,7 +158,7 @@ export async function runTui(
       saveDraft();
       // Show "saved" feedback briefly
       commandBuffer = null;
-      bottomBar.bar.content = " saved";
+      bottomBar.bar.content = " \u2714 saved";
       renderer.requestRender();
       setTimeout(() => {
         refreshPager();
@@ -521,6 +521,19 @@ export async function runTui(
             renderer.destroy();
             resolve();
             return;
+          } else {
+            // Show why approval is blocked
+            const { open, pending } = state.activeThreadCount();
+            const total = open + pending;
+            const msg =
+              total === 0
+                ? "No threads to approve"
+                : `${total} thread${total !== 1 ? "s" : ""} still open/pending`;
+            bottomBar.bar.content = ` \u26a0  ${msg}`;
+            renderer.requestRender();
+            setTimeout(() => {
+              refreshPager();
+            }, 2000);
           }
           break;
         }

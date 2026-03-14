@@ -25,7 +25,7 @@ export function createHelp(opts: {
   const helpText = [
     "",
     "  Navigation",
-    "  j/k       Scroll up/down",
+    "  j/k       Down/up",
     "  Ctrl+d/u  Half page down/up",
     "  /         Search",
     "  n/N       Next/prev search match (or thread if no active search)",
