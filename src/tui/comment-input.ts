@@ -88,7 +88,7 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
 
   // Hint line
   const hint = new TextRenderable(renderer, {
-    content: " [Ctrl+Enter] submit  [Esc] cancel",
+    content: " [Ctrl+S] submit  [Esc] cancel",
     width: "100%",
     height: 1,
     fg: theme.hintFg,
@@ -115,8 +115,8 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
       onCancel();
       return;
     }
-    // Ctrl+Enter submits
-    if (key.ctrl && key.name === "return") {
+    // Ctrl+S or Ctrl+Enter submits
+    if (key.ctrl && (key.name === "s" || key.name === "return")) {
       key.preventDefault();
       key.stopPropagation();
       const text = textarea.plainText.trim();
