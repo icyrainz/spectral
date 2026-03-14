@@ -501,11 +501,11 @@ export async function runTui(
           break;
         }
         default: {
-          // Handle bracket-pending sequences (]c / [c)
+          // Handle bracket-pending sequences (]t / [t)
           if (bracketPending !== null) {
             const pending = bracketPending;
             bracketPending = null;
-            if (key.name === "c" || key.sequence === "c") {
+            if (key.name === "t" || key.sequence === "t") {
               if (pending === "]") {
                 const next = state.nextActiveThread();
                 if (next !== null) {

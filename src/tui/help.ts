@@ -29,7 +29,7 @@ export function createHelp(opts: {
     "  Space/b   Page down/up",
     "  /         Search",
     "  n/N       Next/prev search match (or thread if no active search)",
-    "  ]c/[c     Next/prev thread (always)",
+    "  ]t/[t     Next/prev thread (always)",
     "",
     "  Review",
     "  c         Add comment / reply",
