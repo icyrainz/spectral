@@ -1,5 +1,6 @@
 import {
   BoxRenderable,
+  ScrollBoxRenderable,
   TextRenderable,
   type CliRenderer,
   type KeyEvent,
@@ -26,9 +27,9 @@ export function createHelp(opts: {
     "  Navigation",
     "  j/k       Scroll up/down",
     "  Space/b   Page down/up",
-    "  n/N       Next/prev thread",
-    "  ]c/[c     Next/prev comment",
     "  /         Search",
+    "  n/N       Next/prev search match (or thread if no active search)",
+    "  ]c/[c     Next/prev thread (always)",
     "",
     "  Review",
     "  c         Add comment / reply",
@@ -64,16 +65,26 @@ export function createHelp(opts: {
     padding: 0,
   });
 
+  const scrollBox = new ScrollBoxRenderable(renderer, {
+    width: "100%",
+    flexGrow: 1,
+    flexShrink: 1,
+    scrollY: true,
+    scrollX: false,
+    backgroundColor: theme.base,
+  });
+
   const content = new TextRenderable(renderer, {
     content: helpText,
     width: "100%",
-    flexGrow: 1,
     fg: theme.text,
     wrapMode: "none",
   });
 
+  scrollBox.add(content);
+
   const hint = new TextRenderable(renderer, {
-    content: " [?/Esc] close",
+    content: " [?/Esc] close  [j/k] scroll",
     width: "100%",
     height: 1,
     fg: theme.hintFg,
@@ -82,7 +93,7 @@ export function createHelp(opts: {
     truncate: true,
   });
 
-  container.add(content);
+  container.add(scrollBox);
   container.add(hint);
 
   // Key handler
@@ -91,6 +102,20 @@ export function createHelp(opts: {
       key.preventDefault();
       key.stopPropagation();
       onClose();
+      return;
+    }
+    if (key.name === "j" || key.name === "down") {
+      key.preventDefault();
+      key.stopPropagation();
+      scrollBox.scrollBy(1);
+      renderer.requestRender();
+      return;
+    }
+    if (key.name === "k" || key.name === "up") {
+      key.preventDefault();
+      key.stopPropagation();
+      scrollBox.scrollBy(-1);
+      renderer.requestRender();
       return;
     }
   };

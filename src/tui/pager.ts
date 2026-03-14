@@ -27,9 +27,13 @@ function threadHint(thread: Thread): string {
  * Build the pager content string from ReviewState.
  * Plain text — no ANSI codes (OpenTUI handles colors via its own system).
  * Each line: cursor marker + lineNum (4-char padded) + "  " + line content + optional status + hint
+ *
+ * If searchQuery is provided, occurrences of the query in spec line content
+ * are highlighted with [brackets].
  */
-export function buildPagerContent(state: ReviewState): string {
+export function buildPagerContent(state: ReviewState, searchQuery?: string | null): string {
   const lines: string[] = [];
+  const q = searchQuery ? searchQuery.toLowerCase() : null;
 
   for (let i = 0; i < state.specLines.length; i++) {
     const lineNum = i + 1;
@@ -37,7 +41,14 @@ export function buildPagerContent(state: ReviewState): string {
     const isCursor = lineNum === state.cursorLine;
 
     const prefix = isCursor ? ">" : " ";
-    let line = `${prefix}${padLineNum(lineNum)}  ${state.specLines[i]}`;
+    let specText = state.specLines[i];
+
+    // Highlight search matches in spec text
+    if (q) {
+      specText = highlightMatches(specText, q);
+    }
+
+    let line = `${prefix}${padLineNum(lineNum)}  ${specText}`;
 
     if (thread) {
       const icon = STATUS_ICONS[thread.status];
@@ -49,6 +60,27 @@ export function buildPagerContent(state: ReviewState): string {
   }
 
   return lines.join("\n");
+}
+
+/**
+ * Highlight all occurrences of a query in text by wrapping with >> <<.
+ * Case-insensitive matching; original casing is preserved.
+ */
+function highlightMatches(text: string, queryLower: string): string {
+  const lower = text.toLowerCase();
+  let result = "";
+  let pos = 0;
+  while (pos < text.length) {
+    const idx = lower.indexOf(queryLower, pos);
+    if (idx === -1) {
+      result += text.slice(pos);
+      break;
+    }
+    result += text.slice(pos, idx);
+    result += `>>${text.slice(idx, idx + queryLower.length)}<<`;
+    pos = idx + queryLower.length;
+  }
+  return result;
 }
 
 export interface PagerComponents {

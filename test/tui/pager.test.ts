@@ -149,4 +149,35 @@ describe("buildPagerContent", () => {
     const content = buildPagerContent(state);
     expect(content).toBe("");
   });
+
+  it("highlights search matches with >> << markers", () => {
+    const state = new ReviewState(SPEC, []);
+    const content = buildPagerContent(state, "text");
+    const lines = content.split("\n");
+
+    // Lines 2 and 3 contain "text" — should be highlighted
+    expect(lines[1]).toContain("Some >>text<<");
+    expect(lines[2]).toContain("More >>text<<");
+    // Lines 1 and 4 do not contain "text"
+    expect(lines[0]).not.toContain(">>");
+    expect(lines[3]).not.toContain(">>");
+  });
+
+  it("highlights search matches case-insensitively", () => {
+    const state = new ReviewState(["Hello World", "hello again"], []);
+    const content = buildPagerContent(state, "hello");
+    const lines = content.split("\n");
+
+    expect(lines[0]).toContain(">>Hello<<");
+    expect(lines[1]).toContain(">>hello<<");
+  });
+
+  it("does not highlight when searchQuery is null", () => {
+    const state = new ReviewState(SPEC, []);
+    const content = buildPagerContent(state, null);
+    const lines = content.split("\n");
+
+    expect(lines[1]).toContain("Some text");
+    expect(lines[1]).not.toContain(">>");
+  });
 });

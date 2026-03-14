@@ -11,7 +11,7 @@ export interface SearchOptions {
   renderer: CliRenderer;
   specLines: string[];
   cursorLine: number;
-  onResult: (lineNumber: number) => void;
+  onResult: (lineNumber: number, query: string) => void;
   onCancel: () => void;
 }
 
@@ -94,7 +94,7 @@ export function createSearch(opts: SearchOptions): SearchOverlay {
       for (let offset = 1; offset <= total; offset++) {
         const i = (cursorLine - 1 + offset) % total;
         if (specLines[i].toLowerCase().includes(query)) {
-          onResult(i + 1); // 1-based line number
+          onResult(i + 1, query); // 1-based line number + query
           return;
         }
       }

@@ -81,12 +81,15 @@ export async function runTui(
 
   // 6. Initial render
   function refreshPager(): void {
-    const content = buildPagerContent(state);
+    const content = buildPagerContent(state, searchQuery);
     pager.textNode.content = content;
     topBar.bar.content = buildTopBarText(specFile, state);
     bottomBar.bar.content = buildBottomBarText(commandBuffer);
     renderer.requestRender();
   }
+
+  // Search state — remembered query for n/N cycling
+  let searchQuery: string | null = null;
 
   // Command mode state
   let commandBuffer: string | null = null;
@@ -237,13 +240,15 @@ export async function runTui(
       renderer,
       specLines: state.specLines,
       cursorLine: state.cursorLine,
-      onResult: (lineNumber: number) => {
+      onResult: (lineNumber: number, query: string) => {
+        searchQuery = query;
         state.cursorLine = lineNumber;
         dismissOverlay();
         ensureCursorVisible();
         refreshPager();
       },
       onCancel: () => {
+        searchQuery = null;
         dismissOverlay();
       },
     });
@@ -294,6 +299,24 @@ export async function runTui(
       },
     });
     showOverlay(overlay);
+  }
+
+  // Helper: find next search match from current line in given direction, wrapping
+  function findNextMatch(
+    lines: string[],
+    query: string,
+    currentLine: number,
+    direction: 1 | -1
+  ): number | null {
+    const q = query.toLowerCase();
+    const total = lines.length;
+    for (let offset = 1; offset <= total; offset++) {
+      const i = ((currentLine - 1) + offset * direction + total) % total;
+      if (lines[i].toLowerCase().includes(q)) {
+        return i + 1; // 1-based
+      }
+    }
+    return null;
   }
 
   refreshPager();
@@ -396,21 +419,36 @@ export async function runTui(
         }
         case "n": {
           if (!key.shift) {
-            const next = state.nextActiveThread();
-            if (next !== null) {
-              state.cursorLine = next;
-              ensureCursorVisible();
-              refreshPager();
+            if (searchQuery) {
+              const match = findNextMatch(state.specLines, searchQuery, state.cursorLine, 1);
+              if (match !== null) {
+                state.cursorLine = match;
+                ensureCursorVisible();
+              }
+            } else {
+              const next = state.nextActiveThread();
+              if (next !== null) {
+                state.cursorLine = next;
+                ensureCursorVisible();
+              }
             }
           } else {
-            // Shift+N = prev thread (uppercase N)
-            const prev = state.prevActiveThread();
-            if (prev !== null) {
-              state.cursorLine = prev;
-              ensureCursorVisible();
-              refreshPager();
+            // Shift+N = prev search match or prev thread
+            if (searchQuery) {
+              const match = findNextMatch(state.specLines, searchQuery, state.cursorLine, -1);
+              if (match !== null) {
+                state.cursorLine = match;
+                ensureCursorVisible();
+              }
+            } else {
+              const prev = state.prevActiveThread();
+              if (prev !== null) {
+                state.cursorLine = prev;
+                ensureCursorVisible();
+              }
             }
           }
+          refreshPager();
           break;
         }
         case "c": {
