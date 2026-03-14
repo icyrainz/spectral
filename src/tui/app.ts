@@ -24,6 +24,7 @@ import { createThreadExpand } from "./thread-expand";
 import { createSearch } from "./search";
 import { createThreadList } from "./thread-list";
 import { createConfirm } from "./confirm";
+import { createHelp } from "./help";
 
 export async function runTui(
   specFile: string,
@@ -83,13 +84,15 @@ export async function runTui(
     const content = buildPagerContent(state);
     pager.textNode.content = content;
     topBar.bar.content = buildTopBarText(specFile, state);
-    bottomBar.bar.content = buildBottomBarText(commandBuffer, showHelp);
+    bottomBar.bar.content = buildBottomBarText(commandBuffer);
     renderer.requestRender();
   }
 
   // Command mode state
   let commandBuffer: string | null = null;
-  let showHelp = false;
+
+  // Bracket-pending state for ]c / [c navigation
+  let bracketPending: "]" | "[" | null = null;
 
   // Overlay state — when an overlay is active, normal keybindings are blocked.
   // The overlay's own key handlers manage its lifecycle.
@@ -165,6 +168,17 @@ export async function runTui(
       }
       saveDraft();
       return true; // exit
+    }
+    if (cmd === "wq") {
+      saveDraft();
+      // Show confirm dialog if there are pending comments
+      const { open, pending } = state.activeThreadCount();
+      const total = open + pending;
+      if (total > 0) {
+        showConfirmQuit(resolve);
+        return false;
+      }
+      return true; // saved + exit
     }
     if (cmd === "q!") {
       return true; // exit without saving
@@ -247,6 +261,16 @@ export async function runTui(
         refreshPager();
       },
       onCancel: () => {
+        dismissOverlay();
+      },
+    });
+    showOverlay(overlay);
+  }
+
+  function showHelpOverlay(): void {
+    const overlay = createHelp({
+      renderer,
+      onClose: () => {
         dismissOverlay();
       },
     });
@@ -439,10 +463,41 @@ export async function runTui(
           break;
         }
         default: {
-          // Check for "?" to toggle help
+          // Handle bracket-pending sequences (]c / [c)
+          if (bracketPending !== null) {
+            const pending = bracketPending;
+            bracketPending = null;
+            if (key.name === "c" || key.sequence === "c") {
+              if (pending === "]") {
+                const next = state.nextActiveThread();
+                if (next !== null) {
+                  state.cursorLine = next;
+                  ensureCursorVisible();
+                  refreshPager();
+                }
+              } else {
+                const prev = state.prevActiveThread();
+                if (prev !== null) {
+                  state.cursorLine = prev;
+                  ensureCursorVisible();
+                  refreshPager();
+                }
+              }
+            }
+            break;
+          }
+          // Check for "]" or "[" to start bracket sequence
+          if (key.sequence === "]") {
+            bracketPending = "]";
+            break;
+          }
+          if (key.sequence === "[") {
+            bracketPending = "[";
+            break;
+          }
+          // Check for "?" to show help overlay
           if (key.sequence === "?") {
-            showHelp = !showHelp;
-            refreshPager();
+            showHelpOverlay();
             break;
           }
           // Check for "/" to enter search mode

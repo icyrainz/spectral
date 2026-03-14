@@ -21,17 +21,17 @@ export interface SearchOverlay {
 }
 
 /**
- * Create a search overlay at the top of the screen.
+ * Create a search overlay at the bottom of the screen.
  * On Enter: search forward from cursorLine, wrapping around.
  * On Escape: cancel.
  */
 export function createSearch(opts: SearchOptions): SearchOverlay {
   const { renderer, specLines, cursorLine, onResult, onCancel } = opts;
 
-  // Container bar at top
+  // Container bar at bottom
   const container = new BoxRenderable(renderer, {
     position: "absolute",
-    top: 0,
+    bottom: 0,
     left: 0,
     width: "100%",
     height: 1,
@@ -66,8 +66,11 @@ export function createSearch(opts: SearchOptions): SearchOverlay {
   container.add(label);
   container.add(input);
 
-  // Focus the input
-  renderer.focusRenderable(input);
+  // Focus the input after mount (same pattern as comment-input)
+  setTimeout(() => {
+    input.focus();
+    renderer.requestRender();
+  }, 0);
 
   // Key handler
   const keyHandler = (key: KeyEvent) => {

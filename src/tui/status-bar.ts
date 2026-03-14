@@ -32,12 +32,9 @@ export function buildTopBarText(
  * Build the bottom bar text: keybinding hints.
  * Contextually shows command buffer when in command mode.
  */
-export function buildBottomBarText(commandBuffer: string | null, showHelp: boolean = false): string {
+export function buildBottomBarText(commandBuffer: string | null): string {
   if (commandBuffer !== null) {
     return ` :${commandBuffer}`;
-  }
-  if (showHelp) {
-    return " j/k:move  Space/b:page  n/N:thread  c:comment  e:expand  l:list  /:search  r:resolve  R:resolve-all  d:delete  a:approve  :w:save  :q:submit  :q!:quit  ?:close";
   }
   return " j/k:move  c:comment  r:resolve  /:search  ?:help";
 }

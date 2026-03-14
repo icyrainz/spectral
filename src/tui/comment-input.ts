@@ -107,6 +107,9 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
     renderer.requestRender();
   }, 0);
 
+  // Guard against duplicate submit
+  let submitted = false;
+
   // Key handler for Ctrl+Enter to submit and Esc to cancel
   const keyHandler = (key: KeyEvent) => {
     if (key.name === "escape") {
@@ -119,6 +122,8 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
     if (key.ctrl && (key.name === "s" || key.name === "return")) {
       key.preventDefault();
       key.stopPropagation();
+      if (submitted) return;
+      submitted = true;
       const text = textarea.plainText.trim();
       if (text.length > 0) {
         onSubmit(text);
