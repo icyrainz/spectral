@@ -139,8 +139,9 @@ describe("buildPagerContent", () => {
     const content = buildPagerContent(state);
     const lines = content.split("\n");
 
-    // "   1  # Title" - prefix + 4-char padded number + 2 spaces + content
-    expect(lines[0]).toMatch(/^.   1  /);
+    // Line numbers are wrapped in ANSI gray codes, so check the raw number is present
+    expect(lines[0]).toContain("   1");
+    expect(lines[0]).toContain("# Title");
   });
 
   it("handles empty spec", () => {

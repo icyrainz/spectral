@@ -77,8 +77,12 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
   container.add(textarea);
   container.add(hint);
 
-  // Focus the textarea so it receives keypress events
-  renderer.focusRenderable(textarea);
+  // Focus the textarea so it receives keypress events.
+  // Use setTimeout to ensure the renderable is mounted before focusing.
+  setTimeout(() => {
+    textarea.focus();
+    renderer.requestRender();
+  }, 0);
 
   // Key handler for Ctrl+Enter to submit and Esc to cancel
   const keyHandler = (key: KeyEvent) => {

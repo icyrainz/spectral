@@ -83,12 +83,13 @@ export async function runTui(
     const content = buildPagerContent(state);
     pager.textNode.content = content;
     topBar.bar.content = buildTopBarText(specFile, state);
-    bottomBar.bar.content = buildBottomBarText(commandBuffer);
+    bottomBar.bar.content = buildBottomBarText(commandBuffer, showHelp);
     renderer.requestRender();
   }
 
   // Command mode state
   let commandBuffer: string | null = null;
+  let showHelp = false;
 
   // Overlay state — when an overlay is active, normal keybindings are blocked.
   // The overlay's own key handlers manage its lifecycle.
@@ -270,12 +271,15 @@ export async function runTui(
   // 7. Set up keybinding handler
   return new Promise<void>((resolve) => {
     renderer.keyInput.on("keypress", (key: KeyEvent) => {
-      // If an overlay is active, let its own handlers manage keys.
-      // Only intercept Ctrl+C to force quit.
+      // If an overlay is active, only handle Ctrl+C to force dismiss.
+      // All other keys pass through to the overlay's own handlers
+      // (e.g., TextareaRenderable for typing in comment input).
       if (activeOverlay) {
         if (key.ctrl && key.name === "c") {
           dismissOverlay();
+          return;
         }
+        // Don't block — let the key propagate to focused renderables
         return;
       }
 
@@ -428,6 +432,12 @@ export async function runTui(
           break;
         }
         default: {
+          // Check for "?" to toggle help
+          if (key.sequence === "?") {
+            showHelp = !showHelp;
+            refreshPager();
+            break;
+          }
           // Check for "/" to enter search mode
           if (key.sequence === "/") {
             showSearchOverlay();
