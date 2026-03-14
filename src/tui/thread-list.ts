@@ -6,7 +6,8 @@ import {
   type CliRenderer,
   type KeyEvent,
 } from "@opentui/core";
-import type { Thread, Status } from "../protocol/types";
+import type { Thread } from "../protocol/types";
+import { theme, STATUS_ICONS } from "./theme";
 
 export interface ThreadListOptions {
   renderer: CliRenderer;
@@ -19,13 +20,6 @@ export interface ThreadListOverlay {
   container: BoxRenderable;
   cleanup: () => void;
 }
-
-const STATUS_ICONS: Record<Status, string> = {
-  open: "\u{1F4AC}",
-  pending: "\u{1F535}",
-  resolved: "\u2714",
-  outdated: "\u26A0",
-};
 
 const MAX_PREVIEW_LENGTH = 50;
 
@@ -58,10 +52,10 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
     width: "70%",
     height: "60%",
     zIndex: 100,
-    backgroundColor: "#1e1e2e",
+    backgroundColor: theme.base,
     border: true,
     borderStyle: "single",
-    borderColor: "#cba6f7",
+    borderColor: theme.borderList,
     title: ` Threads (${activeThreads.length} active) `,
     flexDirection: "column",
     padding: 1,
@@ -72,7 +66,7 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
       content: "No active threads. Press [Esc] to close.",
       width: "100%",
       height: 1,
-      fg: "#6c7086",
+      fg: theme.overlay,
       wrapMode: "none",
     });
     container.add(emptyMsg);
@@ -92,14 +86,14 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
       flexGrow: 1,
       options: selectOptions,
       selectedIndex: 0,
-      backgroundColor: "#1e1e2e",
-      textColor: "#cdd6f4",
-      focusedBackgroundColor: "#1e1e2e",
-      focusedTextColor: "#cdd6f4",
-      selectedBackgroundColor: "#45475a",
+      backgroundColor: theme.base,
+      textColor: theme.text,
+      focusedBackgroundColor: theme.base,
+      focusedTextColor: theme.text,
+      selectedBackgroundColor: theme.surface1,
       selectedTextColor: "#f5c2e7",
-      descriptionColor: "#6c7086",
-      selectedDescriptionColor: "#a6adc8",
+      descriptionColor: theme.overlay,
+      selectedDescriptionColor: theme.subtext,
       showDescription: true,
       wrapSelection: true,
     });
@@ -123,8 +117,8 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
     content: " [j/k] navigate  [Enter] jump  [Esc] close",
     width: "100%",
     height: 1,
-    fg: "#6c7086",
-    bg: "#313244",
+    fg: theme.hintFg,
+    bg: theme.hintBg,
     wrapMode: "none",
     truncate: true,
   });

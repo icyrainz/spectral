@@ -6,6 +6,7 @@ import {
   type KeyEvent,
 } from "@opentui/core";
 import type { Thread } from "../protocol/types";
+import { theme } from "./theme";
 
 export interface CommentInputOptions {
   renderer: CliRenderer;
@@ -20,10 +21,12 @@ export interface CommentInputOverlay {
   cleanup: () => void;
 }
 
+const MAX_CONTEXT_LENGTH = 80;
+
 /**
  * Create a comment input overlay.
  * - If no existing thread: "New comment on line N"
- * - If existing thread: "Reply to thread #N"
+ * - If existing thread: "Reply to thread #N" with last message context
  *
  * Ctrl+Enter submits, Esc cancels.
  */
@@ -42,26 +45,45 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
     width: "80%",
     height: 12,
     zIndex: 100,
-    backgroundColor: "#1e1e2e",
+    backgroundColor: theme.base,
     border: true,
     borderStyle: "single",
-    borderColor: "#89b4fa",
+    borderColor: theme.borderComment,
     title: ` ${label} `,
     flexDirection: "column",
     padding: 1,
   });
 
+  // Reply context: show last message when replying to existing thread
+  if (existingThread && existingThread.messages.length > 0) {
+    const lastMsg = existingThread.messages[existingThread.messages.length - 1];
+    const authorLabel = lastMsg.author === "human" ? "You" : "AI";
+    let preview = lastMsg.text.replace(/\n/g, " ");
+    if (preview.length > MAX_CONTEXT_LENGTH) {
+      preview = preview.slice(0, MAX_CONTEXT_LENGTH - 1) + "\u2026";
+    }
+    const contextText = new TextRenderable(renderer, {
+      content: ` ${authorLabel}: ${preview}`,
+      width: "100%",
+      height: 1,
+      fg: theme.overlay,
+      wrapMode: "none",
+      truncate: true,
+    });
+    container.add(contextText);
+  }
+
   // Textarea for input
   const textarea = new TextareaRenderable(renderer, {
     width: "100%",
     flexGrow: 1,
-    backgroundColor: "#313244",
-    textColor: "#cdd6f4",
-    focusedBackgroundColor: "#313244",
-    focusedTextColor: "#cdd6f4",
+    backgroundColor: theme.surface0,
+    textColor: theme.text,
+    focusedBackgroundColor: theme.surface0,
+    focusedTextColor: theme.text,
     wrapMode: "word",
     placeholder: "Type your comment...",
-    placeholderColor: "#6c7086",
+    placeholderColor: theme.overlay,
   });
 
   // Hint line
@@ -69,7 +91,8 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
     content: " [Ctrl+Enter] submit  [Esc] cancel",
     width: "100%",
     height: 1,
-    fg: "#6c7086",
+    fg: theme.hintFg,
+    bg: theme.hintBg,
     wrapMode: "none",
     truncate: true,
   });

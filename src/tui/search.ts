@@ -5,6 +5,7 @@ import {
   type CliRenderer,
   type KeyEvent,
 } from "@opentui/core";
+import { theme } from "./theme";
 
 export interface SearchOptions {
   renderer: CliRenderer;
@@ -35,7 +36,7 @@ export function createSearch(opts: SearchOptions): SearchOverlay {
     width: "100%",
     height: 1,
     zIndex: 100,
-    backgroundColor: "#313244",
+    backgroundColor: theme.surface0,
     flexDirection: "row",
     alignItems: "center",
   });
@@ -45,8 +46,8 @@ export function createSearch(opts: SearchOptions): SearchOverlay {
     content: " / ",
     width: 3,
     height: 1,
-    fg: "#f9e2af",
-    bg: "#313244",
+    fg: theme.yellow,
+    bg: theme.surface0,
     wrapMode: "none",
   });
 
@@ -54,12 +55,12 @@ export function createSearch(opts: SearchOptions): SearchOverlay {
   const input = new InputRenderable(renderer, {
     width: "100%",
     flexGrow: 1,
-    backgroundColor: "#313244",
-    textColor: "#cdd6f4",
-    focusedBackgroundColor: "#45475a",
-    focusedTextColor: "#cdd6f4",
+    backgroundColor: theme.surface0,
+    textColor: theme.text,
+    focusedBackgroundColor: theme.surface1,
+    focusedTextColor: theme.text,
     placeholder: "Search...",
-    placeholderColor: "#6c7086",
+    placeholderColor: theme.overlay,
   });
 
   container.add(label);
@@ -95,8 +96,10 @@ export function createSearch(opts: SearchOptions): SearchOverlay {
         }
       }
 
-      // No match found — cancel (could flash a message, but keep simple)
-      onCancel();
+      // No match found — show "No match" in red, keep search open
+      label.content = " No match ";
+      label.fg = theme.red;
+      renderer.requestRender();
       return;
     }
   };

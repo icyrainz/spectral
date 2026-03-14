@@ -1,17 +1,11 @@
 import type { ReviewState } from "../state/review-state";
-import type { Status, Thread } from "../protocol/types";
+import type { Thread } from "../protocol/types";
 import {
   ScrollBoxRenderable,
   TextRenderable,
   type CliRenderer,
 } from "@opentui/core";
-
-const STATUS_ICONS: Record<Status, string> = {
-  open: "\u{1F4AC}",
-  pending: "\u{1F535}",
-  resolved: "\u2714",
-  outdated: "\u26A0",
-};
+import { theme, STATUS_ICONS } from "./theme";
 
 const MAX_HINT_LENGTH = 40;
 
@@ -27,6 +21,10 @@ const ANSI = {
   magenta: "\x1b[35m",
   gray: "\x1b[90m",
 };
+
+// Cursor line highlight
+const CURSOR_BG = "\x1b[48;2;49;50;68m";  // #313244
+const CURSOR_RESET = "\x1b[49m";
 
 /**
  * Apply basic markdown formatting to a line using ANSI codes.
@@ -108,6 +106,11 @@ export function buildPagerContent(state: ReviewState): string {
       line += `  ${icon} ${ANSI.dim}${hint}${ANSI.reset}`;
     }
 
+    // Wrap cursor line with background highlight
+    if (isCursor) {
+      line = `${CURSOR_BG}${line}${CURSOR_RESET}`;
+    }
+
     lines.push(line);
   }
 
@@ -127,6 +130,7 @@ export function createPager(renderer: CliRenderer): PagerComponents {
     content: "",
     width: "100%",
     wrapMode: "none",
+    bg: theme.base,
   });
 
   const scrollBox = new ScrollBoxRenderable(renderer, {

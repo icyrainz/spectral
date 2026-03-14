@@ -37,8 +37,8 @@ describe("buildPagerContent", () => {
     const content = buildPagerContent(state);
     const lines = content.split("\n");
 
-    // Line 3 (index 2) should have ">" prefix
-    expect(lines[2]).toMatch(/^>/);
+    // Line 3 (index 2) should have ">" prefix (possibly preceded by ANSI cursor bg)
+    expect(lines[2]).toMatch(/^(\x1b\[48;2;49;50;68m)?>/);
     // Other lines should have " " prefix
     expect(lines[0]).toMatch(/^ /);
     expect(lines[1]).toMatch(/^ /);

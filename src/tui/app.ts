@@ -146,6 +146,13 @@ export async function runTui(
   function processCommand(cmd: string, resolve: () => void): boolean {
     if (cmd === "w") {
       saveDraft();
+      // Show "saved" feedback briefly
+      commandBuffer = null;
+      bottomBar.bar.content = " saved";
+      renderer.requestRender();
+      setTimeout(() => {
+        refreshPager();
+      }, 1200);
       return false; // don't exit
     }
     if (cmd === "q") {

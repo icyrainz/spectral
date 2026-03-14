@@ -1,6 +1,7 @@
 import { TextRenderable, type CliRenderer } from "@opentui/core";
 import type { ReviewState } from "../state/review-state";
 import { basename } from "path";
+import { theme } from "./theme";
 
 export interface TopBarComponents {
   bar: TextRenderable;
@@ -49,8 +50,8 @@ export function createTopBar(renderer: CliRenderer): TopBarComponents {
     content: "",
     width: "100%",
     height: 1,
-    bg: "#333333",
-    fg: "#ffffff",
+    bg: theme.surface0,
+    fg: theme.text,
     wrapMode: "none",
     truncate: true,
   });
@@ -66,8 +67,8 @@ export function createBottomBar(renderer: CliRenderer): BottomBarComponents {
     content: "",
     width: "100%",
     height: 1,
-    bg: "#333333",
-    fg: "#ffffff",
+    bg: theme.surface0,
+    fg: theme.text,
     wrapMode: "none",
     truncate: true,
   });

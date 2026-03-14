@@ -4,6 +4,7 @@ import {
   type CliRenderer,
   type KeyEvent,
 } from "@opentui/core";
+import { theme } from "./theme";
 
 export interface ConfirmOptions {
   renderer: CliRenderer;
@@ -31,12 +32,12 @@ export function createConfirm(opts: ConfirmOptions): ConfirmOverlay {
     top: "35%",
     left: "25%",
     width: "50%",
-    height: 5,
+    height: 7,
     zIndex: 100,
-    backgroundColor: "#1e1e2e",
+    backgroundColor: theme.base,
     border: true,
     borderStyle: "single",
-    borderColor: "#f38ba8",
+    borderColor: theme.borderConfirm,
     title: " Confirm ",
     flexDirection: "column",
     padding: 1,
@@ -48,16 +49,17 @@ export function createConfirm(opts: ConfirmOptions): ConfirmOverlay {
     content: message,
     width: "100%",
     height: 1,
-    fg: "#cdd6f4",
+    fg: theme.text,
     wrapMode: "none",
     truncate: true,
   });
 
   const hint = new TextRenderable(renderer, {
-    content: "[y] yes  [n/Esc] no",
+    content: " [y] yes  [n/Esc] no",
     width: "100%",
     height: 1,
-    fg: "#6c7086",
+    fg: theme.hintFg,
+    bg: theme.hintBg,
     wrapMode: "none",
     truncate: true,
   });

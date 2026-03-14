@@ -6,6 +6,7 @@ import {
   type KeyEvent,
 } from "@opentui/core";
 import type { Thread } from "../protocol/types";
+import { theme } from "./theme";
 
 export interface ThreadExpandOptions {
   renderer: CliRenderer;
@@ -23,7 +24,7 @@ export interface ThreadExpandOverlay {
 /**
  * Create a thread expand overlay showing full thread messages.
  * Each message shows author icon + text.
- * Actions: [r]esolve [c]ontinue [q]uit
+ * Actions: [r]esolve [c]reply [q/Esc]close
  */
 export function createThreadExpand(opts: ThreadExpandOptions): ThreadExpandOverlay {
   const { renderer, thread, onResolve, onContinue, onClose } = opts;
@@ -39,10 +40,10 @@ export function createThreadExpand(opts: ThreadExpandOptions): ThreadExpandOverl
     width: "80%",
     height: "70%",
     zIndex: 100,
-    backgroundColor: "#1e1e2e",
+    backgroundColor: theme.base,
     border: true,
     borderStyle: "single",
-    borderColor: "#a6e3a1",
+    borderColor: theme.borderThread,
     title,
     flexDirection: "column",
     padding: 1,
@@ -73,7 +74,7 @@ export function createThreadExpand(opts: ThreadExpandOptions): ThreadExpandOverl
   const messageText = new TextRenderable(renderer, {
     content: lines.join("\n"),
     width: "100%",
-    fg: "#cdd6f4",
+    fg: theme.text,
     wrapMode: "word",
   });
 
@@ -81,11 +82,11 @@ export function createThreadExpand(opts: ThreadExpandOptions): ThreadExpandOverl
 
   // Action hint bar
   const hint = new TextRenderable(renderer, {
-    content: " [r] resolve  [c] continue (reply)  [q] quit",
+    content: " [r] resolve  [c] reply  [q/Esc] close",
     width: "100%",
     height: 1,
-    fg: "#6c7086",
-    bg: "#313244",
+    fg: theme.hintFg,
+    bg: theme.hintBg,
     wrapMode: "none",
     truncate: true,
   });
