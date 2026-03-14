@@ -54,17 +54,22 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
     padding: 1,
   });
 
-  // Show previous messages as read-only context when replying
+  // Show last N messages as read-only context when replying.
+  // Always show the most recent messages so the AI reply is visible.
+  const MAX_CONTEXT_LINES = 6;
   if (existingThread && existingThread.messages.length > 0) {
-    const contextLines = existingThread.messages.map((msg) => {
-      const icon = msg.author === "human" ? "You" : "AI";
+    const allContextLines = existingThread.messages.map((msg) => {
+      const icon = msg.author === "human" ? "You" : " AI";
       const preview = msg.text.replace(/\n/g, " ");
       return ` ${icon}: ${preview.length > MAX_CONTEXT_LENGTH ? preview.slice(0, MAX_CONTEXT_LENGTH - 1) + "\u2026" : preview}`;
     });
+    // Show the last N messages (most recent, including AI reply)
+    const visible = allContextLines.slice(-MAX_CONTEXT_LINES);
+    const prefix = allContextLines.length > MAX_CONTEXT_LINES ? ` ... ${allContextLines.length - MAX_CONTEXT_LINES} earlier message(s)\n` : "";
     const contextText = new TextRenderable(renderer, {
-      content: contextLines.join("\n"),
+      content: prefix + visible.join("\n"),
       width: "100%",
-      height: Math.min(contextLines.length, 4),
+      height: Math.min(visible.length + (prefix ? 1 : 0), MAX_CONTEXT_LINES + 1),
       fg: theme.overlay,
       wrapMode: "none",
       truncate: true,
