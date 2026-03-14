@@ -88,7 +88,7 @@ export function createHelp(opts: {
   scrollBox.add(content);
 
   const hint = new TextRenderable(renderer, {
-    content: " [?/Esc] close  [j/k] scroll",
+    content: " [q/?/Esc] close  [j/k] scroll",
     width: "100%",
     height: 1,
     fg: theme.hintFg,
@@ -102,7 +102,7 @@ export function createHelp(opts: {
 
   // Key handler
   const keyHandler = (key: KeyEvent) => {
-    if (key.name === "escape" || key.sequence === "?") {
+    if (key.name === "escape" || key.name === "q" || key.sequence === "?") {
       key.preventDefault();
       key.stopPropagation();
       onClose();
