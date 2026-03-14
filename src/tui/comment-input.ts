@@ -54,23 +54,31 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
     padding: 1,
   });
 
-  // Reply context: show last message when replying to existing thread
+  // Show previous messages as read-only context when replying
   if (existingThread && existingThread.messages.length > 0) {
-    const lastMsg = existingThread.messages[existingThread.messages.length - 1];
-    const authorLabel = lastMsg.author === "human" ? "You" : "AI";
-    let preview = lastMsg.text.replace(/\n/g, " ");
-    if (preview.length > MAX_CONTEXT_LENGTH) {
-      preview = preview.slice(0, MAX_CONTEXT_LENGTH - 1) + "\u2026";
-    }
+    const contextLines = existingThread.messages.map((msg) => {
+      const icon = msg.author === "human" ? "You" : "AI";
+      const preview = msg.text.replace(/\n/g, " ");
+      return ` ${icon}: ${preview.length > MAX_CONTEXT_LENGTH ? preview.slice(0, MAX_CONTEXT_LENGTH - 1) + "\u2026" : preview}`;
+    });
     const contextText = new TextRenderable(renderer, {
-      content: ` ${authorLabel}: ${preview}`,
+      content: contextLines.join("\n"),
       width: "100%",
-      height: 1,
+      height: Math.min(contextLines.length, 4),
       fg: theme.overlay,
       wrapMode: "none",
       truncate: true,
     });
     container.add(contextText);
+  }
+
+  // Pre-fill with last human message if editing own comment
+  let initialValue = "";
+  if (existingThread) {
+    const lastHumanMsg = [...existingThread.messages].reverse().find((m) => m.author === "human");
+    if (lastHumanMsg) {
+      initialValue = lastHumanMsg.text;
+    }
   }
 
   // Textarea for input
@@ -84,6 +92,7 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
     wrapMode: "word",
     placeholder: "Type your comment...",
     placeholderColor: theme.overlay,
+    initialValue,
   });
 
   // Hint line
