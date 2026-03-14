@@ -8,15 +8,13 @@ on:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             target: bun-linux-x64
             asset: spectral-linux-x64
-          - os: ubuntu-latest
-            target: bun-linux-arm64
-            asset: spectral-linux-arm64
-          - os: macos-latest
+          - os: macos-13
             target: bun-darwin-x64
             asset: spectral-darwin-x64
           - os: macos-latest
