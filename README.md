@@ -8,13 +8,28 @@ When an AI generates a spec, the human review step breaks the agentic loop. You 
 
 ## Install
 
-Requires [Bun](https://bun.sh).
+Download a binary from [Releases](https://github.com/icyrainz/spectral/releases):
 
 ```bash
-bun install -g spectral
+# macOS (Apple Silicon)
+curl -L https://github.com/icyrainz/spectral/releases/latest/download/spectral-darwin-arm64 -o spectral
+chmod +x spectral && sudo mv spectral /usr/local/bin/
+
+# macOS (Intel)
+curl -L https://github.com/icyrainz/spectral/releases/latest/download/spectral-darwin-x64 -o spectral
+chmod +x spectral && sudo mv spectral /usr/local/bin/
+
+# Linux (x64)
+curl -L https://github.com/icyrainz/spectral/releases/latest/download/spectral-linux-x64 -o spectral
+chmod +x spectral && sudo mv spectral /usr/local/bin/
 ```
 
-Or download a binary from [Releases](https://github.com/icyrainz/spectral/releases).
+Or run from source with [Bun](https://bun.sh):
+
+```bash
+git clone https://github.com/icyrainz/spectral.git
+cd spectral && bun install && bun link
+```
 
 ## Usage
 
