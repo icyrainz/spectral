@@ -72,12 +72,13 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
     container.add(contextText);
   }
 
-  // Pre-fill with last human message if editing own comment
+  // Pre-fill only if the last message is from human (editing own draft in same session).
+  // If AI has replied (last message is from AI, or status is pending), start empty.
   let initialValue = "";
-  if (existingThread) {
-    const lastHumanMsg = [...existingThread.messages].reverse().find((m) => m.author === "human");
-    if (lastHumanMsg) {
-      initialValue = lastHumanMsg.text;
+  if (existingThread && existingThread.messages.length > 0) {
+    const lastMsg = existingThread.messages[existingThread.messages.length - 1];
+    if (lastMsg.author === "human") {
+      initialValue = lastMsg.text;
     }
   }
 
