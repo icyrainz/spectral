@@ -279,7 +279,7 @@ When the human presses `<leader>ma`:
 
 On subsequent rounds (when a `.review.json` exists with AI responses), the plugin opens in diff mode:
 
-- **Left buffer:** previous spec version from git (`git show HEAD:<spec-file>` — the last committed version before the AI's latest edits)
+- **Left buffer:** previous spec version from git (`git show HEAD~1:<spec-file>` — the version before the AI's latest commit)
 - **Right buffer:** current spec file (with AI edits), read-only, with comment overlays
 - **First round** (no `.review.json` or no AI responses): single-buffer mode, no diff
 
