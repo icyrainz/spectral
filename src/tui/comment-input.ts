@@ -124,8 +124,8 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
 
   // Hint line — show resolve option only for existing threads
   const hintText = hasThread
-    ? " [Ctrl+Enter] submit  [Ctrl+R] resolve  [Esc] cancel"
-    : " [Ctrl+Enter] submit  [Esc] cancel";
+    ? " [Tab] submit  [Ctrl+R] resolve  [Esc] cancel"
+    : " [Tab] submit  [Esc] cancel";
 
   const hint = new TextRenderable(renderer, {
     content: hintText,
@@ -155,8 +155,8 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
       onCancel();
       return;
     }
-    // Ctrl+Enter submits reply (primary); Ctrl+S also works as secondary
-    if (key.ctrl && (key.name === "return" || key.name === "s")) {
+    // Tab submits (works through tmux); Ctrl+Enter and Ctrl+S as alternatives
+    if (key.name === "tab" || (key.ctrl && (key.name === "return" || key.name === "s"))) {
       key.preventDefault();
       key.stopPropagation();
       if (submitted) return;
