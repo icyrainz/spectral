@@ -155,8 +155,8 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
       onCancel();
       return;
     }
-    // Tab submits (works through tmux); Ctrl+Enter and Ctrl+S as alternatives
-    if (key.name === "tab" || (key.ctrl && (key.name === "return" || key.name === "s"))) {
+    // Tab submits
+    if (key.name === "tab") {
       key.preventDefault();
       key.stopPropagation();
       if (submitted) return;
