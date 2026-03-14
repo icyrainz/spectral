@@ -112,8 +112,8 @@ When the AI edits the spec, it updates thread anchors in the review file:
 
 | Type | Fields | Source | Use Case |
 |------|--------|--------|----------|
-| Line | `line` | Neovim, Web | Comment on a whole line |
-| Span | `line`, `startChar`, `endChar` | Neovim, Web | Highlight characters within a line |
+| Line | `line` | TUI, Neovim, Web | Comment on a whole line |
+| Span | `line`, `startChar`, `endChar` | TUI, Neovim, Web | Highlight characters within a line |
 | Region | `startLine`, `startChar`, `endLine`, `endChar` | Web (drag), Touch | Multi-line selection |
 | Quoted | `quotedText` | Google Docs, any UI without line resolution | Text-anchored comment |
 
@@ -162,8 +162,9 @@ Single-writer contract. The human UI and the AI never write concurrently — the
 ### Usage
 
 ```bash
-spectral <file.md>          # opens with default UI (neovim)
-spectral <file.md> --nvim   # explicit neovim
+spectral <file.md>          # opens with default UI (TUI)
+spectral <file.md> --tui    # explicit TUI (default)
+spectral <file.md> --nvim   # neovim plugin (v2)
 spectral <file.md> --web    # web UI (v2)
 ```
 
@@ -307,19 +308,19 @@ Messages are stored as markdown in the JSON. The TUI renders markdown as plain t
 3. CLI checks for draft → resumes or starts fresh
 4. TUI opens (first round: plain view; subsequent rounds: diff-highlighted view showing AI changes)
 5. Human reads, adds comments, resolves addressed threads
-6. On :w → plugin writes .review.draft.json (incremental save)
-7. On :q → CLI merges draft into .review.json, exits
+6. Periodic auto-save → TUI writes .review.draft.json (crash recovery)
+7. On q (quit) → TUI writes final draft, CLI merges draft into .review.json, exits
 8. Claude Code reads .review.json, processes open threads (updates spec or responds),
    rewrites .review.json with updated anchors/statuses/responses, commits spec changes
 9. Claude Code runs spectral again → human sees diff of AI changes + AI responses
 10. Human resolves threads, or continues discussion
-11. When all threads clear → human presses <leader>ma (approve)
+11. When all threads clear → human presses a (approve)
 12. CLI exits with "APPROVED: path/to/review.json" on stdout → Claude Code proceeds to implementation plan
 ```
 
 ### Crash Recovery
 
-If neovim crashes or is killed, the draft file persists. Next invocation of `spectral` detects the draft and resumes with all previous messages loaded.
+If the TUI crashes or is killed, the draft file persists. Next invocation of `spectral` detects the draft and resumes with all previous comments loaded.
 
 ## Claude Code Integration
 
