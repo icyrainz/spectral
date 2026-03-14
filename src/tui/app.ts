@@ -86,9 +86,8 @@ export async function runTui(
     } else {
       pager.markdownNode.content = state.specLines.join("\n");
     }
-    const modeLabel = pager.mode === "markdown" ? "[md]" : "[line]";
-    topBar.bar.content = buildTopBarText(specFile, state) + `  ${modeLabel}`;
-    bottomBar.bar.content = buildBottomBarText(commandBuffer);
+    topBar.bar.content = buildTopBarText(specFile, state);
+    bottomBar.bar.content = buildBottomBarText(commandBuffer, pager.mode);
     renderer.requestRender();
   }
 
@@ -103,6 +102,12 @@ export async function runTui(
 
   // Bracket-pending state for ]c / [c navigation
   let bracketPending: "]" | "[" | null = null;
+
+  // Delete-pending state: first `d` sets timer, second `d` within 500ms executes
+  let deletePendingTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // g-pending state: first `g` sets timer, second `g` within 500ms goes to top
+  let gPendingTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Overlay state — when an overlay is active, normal keybindings are blocked.
   // The overlay's own key handlers manage its lifecycle.
@@ -268,25 +273,6 @@ export async function runTui(
     showOverlay(overlay);
   }
 
-  function showConfirmQuit(resolve: () => void): void {
-    const { open, pending } = state.activeThreadCount();
-    const total = open + pending;
-    const overlay = createConfirm({
-      renderer,
-      message: `Submit ${total} active thread(s) and quit? [y/n]`,
-      onConfirm: () => {
-        dismissOverlay();
-        saveDraft();
-        renderer.destroy();
-        resolve();
-      },
-      onCancel: () => {
-        dismissOverlay();
-      },
-    });
-    showOverlay(overlay);
-  }
-
   // Helper: find next search match from current line in given direction, wrapping
   function findNextMatch(
     lines: string[],
@@ -409,6 +395,7 @@ export async function runTui(
         case "d": {
           // Ctrl+D — half page down
           if (key.ctrl) {
+            if (deletePendingTimer) { clearTimeout(deletePendingTimer); deletePendingTimer = null; }
             const half = Math.max(1, Math.floor(pageSize() / 2));
             if (pager.mode === "markdown") {
               pager.scrollBox.scrollBy(half);
@@ -419,12 +406,26 @@ export async function runTui(
               refreshPager();
             }
           } else {
-            // d without ctrl — delete draft comment
+            // d without ctrl — delete draft comment (dd = double-tap within 500ms)
+            ensureLineMode(pager);
+            refreshPager();
             const thread = state.threadAtLine(state.cursorLine);
-            if (thread) {
+            if (!thread) break;
+            if (deletePendingTimer) {
+              // Second d within 500ms — execute delete
+              clearTimeout(deletePendingTimer);
+              deletePendingTimer = null;
               state.deleteLastDraftMessage(thread.id);
               hasUnsavedChanges = true;
               refreshPager();
+            } else {
+              // First d — show hint and start timer
+              bottomBar.bar.content = " Press d again to delete";
+              renderer.requestRender();
+              deletePendingTimer = setTimeout(() => {
+                deletePendingTimer = null;
+                refreshPager();
+              }, 500);
             }
           }
           break;
@@ -453,14 +454,12 @@ export async function runTui(
                 ensureCursorVisible();
               }
             } else {
-              const next = state.nextActiveThread();
-              if (next !== null) {
-                state.cursorLine = next;
-                ensureCursorVisible();
-              }
+              bottomBar.bar.content = " No active search \u2014 use / to search";
+              renderer.requestRender();
+              setTimeout(() => { refreshPager(); }, 1500);
             }
           } else {
-            // Shift+N = prev search match or prev thread
+            // Shift+N = prev search match
             if (searchQuery) {
               const match = findNextMatch(state.specLines, searchQuery, state.cursorLine, -1);
               if (match !== null) {
@@ -468,20 +467,29 @@ export async function runTui(
                 ensureCursorVisible();
               }
             } else {
-              const prev = state.prevActiveThread();
-              if (prev !== null) {
-                state.cursorLine = prev;
-                ensureCursorVisible();
-              }
+              bottomBar.bar.content = " No active search \u2014 use / to search";
+              renderer.requestRender();
+              setTimeout(() => { refreshPager(); }, 1500);
             }
           }
           refreshPager();
           break;
         }
         case "m": {
-          // Toggle markdown / line mode
+          // Toggle markdown / line mode with scroll position sync
+          const wasMarkdown = pager.mode === "markdown";
           togglePagerMode(pager);
-          refreshPager();
+          if (wasMarkdown) {
+            // Markdown → Line: sync scroll position to cursor
+            state.cursorLine = Math.max(1, pager.scrollBox.scrollTop + 1);
+            refreshPager();
+            ensureCursorVisible();
+          } else {
+            // Line → Markdown: approximate scroll to cursor position
+            refreshPager();
+            pager.scrollBox.scrollTo(state.cursorLine - 1);
+            renderer.requestRender();
+          }
           break;
         }
         case "c": {
@@ -493,10 +501,14 @@ export async function runTui(
         }
         case "l": {
           // Thread list
+          ensureLineMode(pager);
+          refreshPager();
           showThreadListOverlay();
           break;
         }
         case "r": {
+          ensureLineMode(pager);
+          refreshPager();
           if (!key.shift) {
             // Resolve thread at cursor
             const thread = state.threadAtLine(state.cursorLine);
@@ -504,6 +516,10 @@ export async function runTui(
               state.resolveThread(thread.id);
               hasUnsavedChanges = true;
               refreshPager();
+              // Show feedback briefly
+              bottomBar.bar.content = ` \u2714 Resolved thread #${thread.id}`;
+              renderer.requestRender();
+              setTimeout(() => { refreshPager(); }, 1500);
             }
           } else {
             // Shift+R = resolve all pending
@@ -513,12 +529,58 @@ export async function runTui(
           }
           break;
         }
+        case "g": {
+          if (key.shift) {
+            // G (shift+g) — go to last line / scroll to bottom
+            if (pager.mode === "markdown") {
+              pager.scrollBox.scrollTo(pager.scrollBox.scrollHeight);
+              renderer.requestRender();
+            } else {
+              state.cursorLine = state.lineCount;
+              ensureCursorVisible();
+              refreshPager();
+            }
+          } else {
+            // g — first of gg sequence
+            if (gPendingTimer) {
+              // Second g within 500ms — go to first line / scroll to top
+              clearTimeout(gPendingTimer);
+              gPendingTimer = null;
+              if (pager.mode === "markdown") {
+                pager.scrollBox.scrollTo(0);
+                renderer.requestRender();
+              } else {
+                state.cursorLine = 1;
+                ensureCursorVisible();
+                refreshPager();
+              }
+            } else {
+              gPendingTimer = setTimeout(() => {
+                gPendingTimer = null;
+              }, 500);
+            }
+          }
+          break;
+        }
         case "a": {
           // Approve
+          ensureLineMode(pager);
+          refreshPager();
           if (state.canApprove()) {
-            writeDraftFile(draftPath, { approved: true });
-            renderer.destroy();
-            resolve();
+            const confirmOverlay = createConfirm({
+              renderer,
+              message: "Approve spec and proceed to implementation? [y/n]",
+              onConfirm: () => {
+                dismissOverlay();
+                writeDraftFile(draftPath, { approved: true });
+                renderer.destroy();
+                resolve();
+              },
+              onCancel: () => {
+                dismissOverlay();
+              },
+            });
+            showOverlay(confirmOverlay);
             return;
           } else {
             // Show why approval is blocked

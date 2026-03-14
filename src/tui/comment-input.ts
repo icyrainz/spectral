@@ -108,15 +108,6 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
     container.add(sep);
   }
 
-  // Pre-fill only if the last message is from human (editing own draft)
-  let initialValue = "";
-  if (existingThread && existingThread.messages.length > 0) {
-    const lastMsg = existingThread.messages[existingThread.messages.length - 1];
-    if (lastMsg.author === "human") {
-      initialValue = lastMsg.text;
-    }
-  }
-
   const textarea = new TextareaRenderable(renderer, {
     width: "100%",
     height: hasThread ? 4 : undefined,
@@ -128,7 +119,7 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
     wrapMode: "word",
     placeholder: hasThread ? "Type your reply..." : "Type your comment...",
     placeholderColor: theme.overlay,
-    initialValue,
+    initialValue: "",
   });
 
   // Hint line — show resolve option only for existing threads

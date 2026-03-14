@@ -31,12 +31,14 @@ export function buildTopBarText(
 /**
  * Build the bottom bar text: keybinding hints.
  * Contextually shows command buffer when in command mode.
+ * Prepends mode indicator when provided.
  */
-export function buildBottomBarText(commandBuffer: string | null): string {
+export function buildBottomBarText(commandBuffer: string | null, mode?: "markdown" | "line"): string {
+  const modeLabel = mode === "markdown" ? "[md]" : mode === "line" ? "[line]" : "";
   if (commandBuffer !== null) {
-    return ` :${commandBuffer}`;
+    return ` ${modeLabel} :${commandBuffer}`;
   }
-  return " j/k:move  c:comment  r:resolve  /:search  ?:help";
+  return ` ${modeLabel}  j/k:move  c:comment  r:resolve  /:search  ?:help`;
 }
 
 /**
