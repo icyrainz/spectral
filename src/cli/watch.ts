@@ -106,6 +106,8 @@ export async function runWatch(specFile: string): Promise<void> {
 
       if (result.output) {
         process.stdout.write(result.output);
+        // Exit after outputting — AI re-spawns for the next batch
+        process.exit(0);
       }
 
       // Update offset for next call
@@ -191,13 +193,9 @@ function processNewEvents(
     return { approved: true, output: "", newOffset };
   }
 
-  // Filter to reviewer events (comments, replies, resolves, deletes)
+  // Filter to reviewer events only — don't show AI's own replies back to the AI
   const reviewerEvents = events.filter(
-    (e) =>
-      e.type === "comment" ||
-      e.type === "reply" ||
-      e.type === "resolve" ||
-      e.type === "delete"
+    (e) => e.author === "reviewer" && e.type !== "approve" && e.type !== "round"
   );
 
   if (reviewerEvents.length === 0) {
@@ -333,6 +331,13 @@ function formatWatchOutput(
       }
       lines.push("");
     }
+  }
+
+  // Add footer instruction
+  const hasActionable = newCommentThreadIds.length > 0 || replyThreadIds.length > 0;
+  if (hasActionable) {
+    lines.push(`When done replying, run: revspec watch ${basename(specPath)}`);
+    lines.push("");
   }
 
   return lines.join("\n") + (lines.length > 0 ? "\n" : "");

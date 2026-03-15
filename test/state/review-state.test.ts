@@ -39,10 +39,9 @@ describe("ReviewState", () => {
       expect(state.threads[0].line).toBe(3);
       expect(state.threads[0].status).toBe("open");
       expect(state.threads[0].messages).toHaveLength(1);
-      expect(state.threads[0].messages[0]).toEqual({
-        author: "reviewer",
-        text: "needs clarification",
-      });
+      expect(state.threads[0].messages[0].author).toBe("reviewer");
+      expect(state.threads[0].messages[0].text).toBe("needs clarification");
+      expect(state.threads[0].messages[0].ts).toBeGreaterThan(0);
     });
 
     it("assigns auto-incremented id", () => {
@@ -57,10 +56,9 @@ describe("ReviewState", () => {
       const state = new ReviewState(SPEC, [makeThread("t1", 2, "pending")]);
       state.replyToThread("t1", "my reply");
       expect(state.threads[0].messages).toHaveLength(2);
-      expect(state.threads[0].messages[1]).toEqual({
-        author: "reviewer",
-        text: "my reply",
-      });
+      expect(state.threads[0].messages[1].author).toBe("reviewer");
+      expect(state.threads[0].messages[1].text).toBe("my reply");
+      expect(state.threads[0].messages[1].ts).toBeGreaterThan(0);
     });
 
     it("flips status to open", () => {

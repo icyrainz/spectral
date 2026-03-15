@@ -33,7 +33,7 @@ export class ReviewState {
       id: this.nextThreadId(),
       line,
       status: "open",
-      messages: [{ author: "reviewer", text }],
+      messages: [{ author: "reviewer", text, ts: Date.now() }],
     };
     this.threads.push(thread);
   }
@@ -41,7 +41,7 @@ export class ReviewState {
   replyToThread(threadId: string, text: string): void {
     const thread = this.threads.find((t) => t.id === threadId);
     if (!thread) return;
-    thread.messages.push({ author: "reviewer", text });
+    thread.messages.push({ author: "reviewer", text, ts: Date.now() });
     thread.status = "open";
   }
 
