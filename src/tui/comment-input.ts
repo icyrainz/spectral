@@ -6,7 +6,7 @@ import {
   type CliRenderer,
   type KeyEvent,
 } from "@opentui/core";
-import type { Thread } from "../protocol/types";
+import type { Thread, Message } from "../protocol/types";
 import { theme } from "./theme";
 
 export interface CommentInputOptions {
@@ -21,16 +21,33 @@ export interface CommentInputOptions {
 export interface CommentInputOverlay {
   container: BoxRenderable;
   cleanup: () => void;
+  /** Update the conversation display with a new message (e.g., AI reply arrived) */
+  addMessage: (msg: Message) => void;
+  /** The thread ID this overlay is showing (null for new comments) */
+  threadId: string | null;
 }
 
 const MAX_CONTEXT_LENGTH = 80;
 
+function formatMessage(msg: Message): string {
+  const authorLabel = msg.author === "reviewer" ? "You" : " AI";
+  const tsStr = msg.ts ? new Date(msg.ts).toISOString().replace("T", " ").slice(0, 19) : "";
+  const tsDisplay = tsStr ? ` [${tsStr}]` : "";
+  const lines: string[] = [];
+  lines.push(`${authorLabel}${tsDisplay}:`);
+  for (const textLine of msg.text.split("\n")) {
+    lines.push(`  ${textLine}`);
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
 /**
  * Create a unified comment/thread overlay.
- * - New comment: just a text input
- * - Existing thread: scrollable conversation + reply input + resolve action
- *
- * Tab submits, Ctrl+R resolves, Esc cancels.
+ * - New comment: just a text input, Tab submits and closes
+ * - Existing thread: scrollable conversation + reply input
+ *   Tab submits reply but stays open. Esc closes.
+ *   Live-updates when AI replies arrive via addMessage().
  */
 export function createCommentInput(opts: CommentInputOptions): CommentInputOverlay {
   const { renderer, line, existingThread, onSubmit, onResolve, onCancel } = opts;
@@ -61,6 +78,9 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
 
   // Show full thread conversation in a scrollable area
   let scrollBox: ScrollBoxRenderable | null = null;
+  let messageText: TextRenderable | null = null;
+  let conversationContent = "";
+
   if (hasThread) {
     scrollBox = new ScrollBoxRenderable(renderer, {
       width: "100%",
@@ -70,20 +90,15 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
       scrollX: false,
     });
 
-    const lines: string[] = [];
+    // Build initial conversation content
+    const parts: string[] = [];
     for (const msg of existingThread!.messages) {
-      const authorLabel = msg.author === "reviewer" ? "You" : " AI";
-      const tsStr = msg.ts ? new Date(msg.ts).toISOString().replace("T", " ").slice(0, 19) : "";
-      const tsDisplay = tsStr ? ` [${tsStr}]` : "";
-      lines.push(`${authorLabel}${tsDisplay}:`);
-      for (const textLine of msg.text.split("\n")) {
-        lines.push(`  ${textLine}`);
-      }
-      lines.push("");
+      parts.push(formatMessage(msg));
     }
+    conversationContent = parts.join("");
 
-    const messageText = new TextRenderable(renderer, {
-      content: lines.join("\n"),
+    messageText = new TextRenderable(renderer, {
+      content: conversationContent,
       width: "100%",
       fg: theme.text,
       wrapMode: "word",
@@ -94,8 +109,10 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
 
     // Scroll to bottom to show latest message
     setTimeout(() => {
-      scrollBox.scrollTo(scrollBox.scrollHeight);
-      renderer.requestRender();
+      if (scrollBox) {
+        scrollBox.scrollTo(scrollBox.scrollHeight);
+        renderer.requestRender();
+      }
     }, 0);
   }
 
@@ -125,9 +142,9 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
     initialValue: "",
   });
 
-  // Hint line — show resolve option only for existing threads
+  // Hint line
   const hintText = hasThread
-    ? " [Tab] submit  [Ctrl+R] resolve  [Esc] cancel"
+    ? " [Tab] reply  [Ctrl+R] resolve  [Esc] close"
     : " [Tab] submit  [Esc] cancel";
 
   const hint = new TextRenderable(renderer, {
@@ -149,7 +166,18 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
     renderer.requestRender();
   }, 0);
 
-  let submitted = false;
+  /** Append a message to the conversation display and scroll to bottom */
+  function appendToConversation(msg: Message): void {
+    if (!messageText || !scrollBox) return;
+    conversationContent += formatMessage(msg);
+    messageText.content = conversationContent;
+    setTimeout(() => {
+      if (scrollBox) {
+        scrollBox.scrollTo(scrollBox.scrollHeight);
+        renderer.requestRender();
+      }
+    }, 0);
+  }
 
   const keyHandler = (key: KeyEvent) => {
     if (key.name === "escape") {
@@ -162,13 +190,19 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
     if (key.name === "tab") {
       key.preventDefault();
       key.stopPropagation();
-      if (submitted) return;
-      submitted = true;
       const text = textarea.plainText.trim();
-      if (text.length > 0) {
+      if (text.length === 0) return; // ignore empty
+
+      if (hasThread) {
+        // Existing thread: submit reply, append to conversation, clear input, stay open
         onSubmit(text);
+        appendToConversation({ author: "reviewer", text, ts: Date.now() });
+        textarea.clear();
+        textarea.focus();
+        renderer.requestRender();
       } else {
-        onCancel();
+        // New comment: submit and close
+        onSubmit(text);
       }
       return;
     }
@@ -179,20 +213,18 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
       onResolve();
       return;
     }
-    // Ctrl+D / Ctrl+U scroll the conversation (only for threads with scroll)
-    // Blur textarea first to prevent it from consuming Ctrl+U (line-clear)
+    // Ctrl+D / Ctrl+U scroll the conversation
     if (hasThread && scrollBox && key.ctrl && (key.name === "d" || key.name === "u")) {
       key.preventDefault();
       key.stopPropagation();
-      textarea.blur();
       const scrollAmount = Math.max(1, Math.floor(scrollBox.visibleHeight / 2));
+      const currentScroll = scrollBox.scrollTop;
       if (key.name === "d") {
-        scrollBox.scrollTo(scrollBox.scrollTop + scrollAmount);
+        scrollBox.scrollTo(currentScroll + scrollAmount);
       } else {
-        scrollBox.scrollTo(Math.max(0, scrollBox.scrollTop - scrollAmount));
+        scrollBox.scrollTo(Math.max(0, currentScroll - scrollAmount));
       }
       renderer.requestRender();
-      setTimeout(() => { textarea.focus(); renderer.requestRender(); }, 0);
       return;
     }
   };
@@ -204,5 +236,12 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
     textarea.destroy();
   }
 
-  return { container, cleanup };
+  return {
+    container,
+    cleanup,
+    threadId: existingThread?.id ?? null,
+    addMessage(msg: Message) {
+      appendToConversation(msg);
+    },
+  };
 }

@@ -78,6 +78,10 @@ export async function runTui(
     for (const event of ownerEvents) {
       if (event.type === "reply" && event.threadId && event.text) {
         state.addOwnerReply(event.threadId, event.text, event.ts);
+        // If the thread popup is open for this thread, push the message in
+        if (activeOverlay?.addMessage && activeOverlay?.threadId === event.threadId) {
+          activeOverlay.addMessage({ author: "owner", text: event.text, ts: event.ts });
+        }
       }
     }
     refreshPager();
@@ -153,6 +157,8 @@ export async function runTui(
   type ActiveOverlay = {
     container: BoxRenderable;
     cleanup: () => void;
+    addMessage?: (msg: import("../protocol/types").Message) => void;
+    threadId?: string | null;
   } | null;
   let activeOverlay: ActiveOverlay = null;
 
@@ -239,18 +245,21 @@ export async function runTui(
       existingThread,
       onSubmit: (text: string) => {
         if (existingThread) {
+          // Reply to existing thread — stay open
           state.replyToThread(existingThread.id, text);
           state.markRead(existingThread.id);
           appendEvent(jsonlPath, { type: "reply", threadId: existingThread.id, author: "reviewer", text, ts: Date.now() });
+          refreshPager();
+          // Don't dismiss — overlay stays open, message appended by comment-input
         } else {
+          // New comment — close overlay
           state.addComment(state.cursorLine, text);
-          // Get the thread that was just created to use its ID
           const newThread = state.threadAtLine(state.cursorLine);
           if (newThread) {
             appendEvent(jsonlPath, { type: "comment", threadId: newThread.id, line: state.cursorLine, author: "reviewer", text, ts: Date.now() });
           }
+          dismissOverlay();
         }
-        dismissOverlay();
       },
       onResolve: () => {
         if (existingThread) {
