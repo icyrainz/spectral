@@ -1,7 +1,8 @@
 import { BoxRenderable, TextRenderable, TextNodeRenderable, TextAttributes, type CliRenderer } from "@opentui/core";
 import type { ReviewState } from "../state/review-state";
 import { basename } from "path";
-import { theme } from "./theme";
+import { theme } from "./ui/theme";
+import { buildHints } from "./ui/hint-bar";
 
 export interface TopBarComponents {
   box: BoxRenderable;
@@ -31,7 +32,7 @@ export function buildTopBar(
   // Filename — bold
   t.add(TextNodeRenderable.fromString(` ${name}`, { fg: theme.text, attributes: TextAttributes.BOLD }));
 
-  t.add(TextNodeRenderable.fromString("  |  ", { fg: theme.overlay }));
+  t.add(TextNodeRenderable.fromString("  |  ", { fg: theme.textDim }));
 
   // Thread summary
   if (open > 0 || pending > 0) {
@@ -40,12 +41,12 @@ export function buildTopBar(
     if (pending > 0) parts.push(`${pending} pending`);
     t.add(TextNodeRenderable.fromString(parts.join(", "), { fg: theme.yellow }));
   } else {
-    t.add(TextNodeRenderable.fromString("No active threads", { fg: theme.subtext }));
+    t.add(TextNodeRenderable.fromString("No active threads", { fg: theme.textMuted }));
   }
 
   // Unread replies
   if (unreadCount && unreadCount > 0) {
-    t.add(TextNodeRenderable.fromString("  |  ", { fg: theme.overlay }));
+    t.add(TextNodeRenderable.fromString("  |  ", { fg: theme.textDim }));
     t.add(TextNodeRenderable.fromString(
       `${unreadCount} new repl${unreadCount === 1 ? "y" : "ies"}`,
       { fg: theme.green, attributes: TextAttributes.BOLD }
@@ -54,13 +55,13 @@ export function buildTopBar(
 
   // Spec changed warning
   if (specChanged) {
-    t.add(TextNodeRenderable.fromString("  |  ", { fg: theme.overlay }));
+    t.add(TextNodeRenderable.fromString("  |  ", { fg: theme.textDim }));
     t.add(TextNodeRenderable.fromString("!! Spec changed externally", { fg: theme.red, attributes: TextAttributes.BOLD }));
   }
 
   // Cursor position
-  t.add(TextNodeRenderable.fromString("  |  ", { fg: theme.overlay }));
-  t.add(TextNodeRenderable.fromString(`L${state.cursorLine}/${state.lineCount}`, { fg: theme.subtext }));
+  t.add(TextNodeRenderable.fromString("  |  ", { fg: theme.textDim }));
+  t.add(TextNodeRenderable.fromString(`L${state.cursorLine}/${state.lineCount}`, { fg: theme.textMuted }));
 }
 
 /**
@@ -80,15 +81,7 @@ export function buildBottomBar(bar: BottomBarComponents, commandBuffer: string |
     { key: "/", action: "search" },
     { key: "?", action: "help" },
   ];
-  t.add(TextNodeRenderable.fromString(" ", {}));
-  for (let i = 0; i < hints.length; i++) {
-    const h = hints[i];
-    t.add(TextNodeRenderable.fromString(`[${h.key}]`, { fg: theme.blue }));
-    t.add(TextNodeRenderable.fromString(` ${h.action}`, { fg: theme.subtext }));
-    if (i < hints.length - 1) {
-      t.add(TextNodeRenderable.fromString("  ", {}));
-    }
-  }
+  buildHints(t, hints);
 }
 
 /**
@@ -100,7 +93,7 @@ export function createTopBar(renderer: CliRenderer): TopBarComponents {
     height: 1,
     backgroundColor: theme.base,
     border: ["bottom"],
-    borderColor: theme.surface1,
+    borderColor: theme.border,
   });
 
   const text = new TextRenderable(renderer, {
@@ -123,7 +116,7 @@ export function createBottomBar(renderer: CliRenderer): BottomBarComponents {
     width: "100%",
     height: 1,
     flexShrink: 0,
-    backgroundColor: theme.surface0,
+    backgroundColor: theme.backgroundPanel,
   });
 
   const text = new TextRenderable(renderer, {

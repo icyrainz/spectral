@@ -5,7 +5,7 @@ import {
   type CliRenderer,
   type KeyEvent,
 } from "@opentui/core";
-import { theme } from "./theme";
+import { theme } from "./ui/theme";
 
 export interface SearchOptions {
   renderer: CliRenderer;
@@ -36,7 +36,7 @@ export function createSearch(opts: SearchOptions): SearchOverlay {
     width: "100%",
     height: 1,
     zIndex: 100,
-    backgroundColor: theme.surface0,
+    backgroundColor: theme.backgroundPanel,
     flexDirection: "row",
     alignItems: "center",
   });
@@ -47,7 +47,7 @@ export function createSearch(opts: SearchOptions): SearchOverlay {
     width: 3,
     height: 1,
     fg: theme.yellow,
-    bg: theme.surface0,
+    bg: theme.backgroundPanel,
     wrapMode: "none",
   });
 
@@ -55,12 +55,12 @@ export function createSearch(opts: SearchOptions): SearchOverlay {
   const input = new InputRenderable(renderer, {
     width: "100%",
     flexGrow: 1,
-    backgroundColor: theme.surface0,
+    backgroundColor: theme.backgroundPanel,
     textColor: theme.text,
-    focusedBackgroundColor: theme.surface1,
+    focusedBackgroundColor: theme.backgroundElement,
     focusedTextColor: theme.text,
     placeholder: "Search...",
-    placeholderColor: theme.overlay,
+    placeholderColor: theme.textDim,
   });
 
   container.add(label);

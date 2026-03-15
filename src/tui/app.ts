@@ -28,6 +28,7 @@ import { createSearch } from "./search";
 import { createThreadList } from "./thread-list";
 import { createConfirm } from "./confirm";
 import { createHelp } from "./help";
+import { createKeybindRegistry, type KeyBinding } from "./ui/keybinds";
 
 export async function runTui(
   specFile: string,
@@ -138,16 +139,6 @@ export async function runTui(
   // Command mode state
   let commandBuffer: string | null = null;
 
-  // Bracket-pending state for ]t / [t / ]r / [r navigation
-  let bracketPending: "]" | "[" | null = null;
-  let bracketPendingTimer: ReturnType<typeof setTimeout> | null = null;
-
-  // Delete-pending state: first `d` sets timer, second `d` within 500ms executes
-  let deletePendingTimer: ReturnType<typeof setTimeout> | null = null;
-
-  // g-pending state: first `g` sets timer, second `g` within 500ms goes to top
-  let gPendingTimer: ReturnType<typeof setTimeout> | null = null;
-
   // Overlay state — when an overlay is active, normal keybindings are blocked.
   // The overlay's own key handlers manage its lifecycle.
   type ActiveOverlay = {
@@ -199,6 +190,7 @@ export async function runTui(
     // Signal to watch process that session has ended
     appendEvent(jsonlPath, { type: "session-end", author: "reviewer", ts: Date.now() });
     liveWatcher.stop();
+    keybinds.destroy();
     renderer.destroy();
     resolve();
   }
@@ -249,12 +241,14 @@ export async function runTui(
       }
       appendEvent(jsonlPath, { type: "session-end", author: "reviewer", ts: Date.now() });
       liveWatcher.stop();
+      keybinds.destroy();
       return "exit";
     }
     if (cmd === "q!") {
       // Exit without merging
       appendEvent(jsonlPath, { type: "session-end", author: "reviewer", ts: Date.now() });
       liveWatcher.stop();
+      keybinds.destroy();
       return "exit";
     }
     return "stay"; // unknown command, ignore
@@ -376,6 +370,35 @@ export async function runTui(
     return null;
   }
 
+  // --- Keybind registry ---
+
+  const bindings: KeyBinding[] = [
+    { key: "j", action: "cursor-down" },
+    { key: "down", action: "cursor-down" },
+    { key: "k", action: "cursor-up" },
+    { key: "up", action: "cursor-up" },
+    { key: "C-d", action: "half-page-down" },
+    { key: "C-u", action: "half-page-up" },
+    { key: "G", action: "goto-bottom" },
+    { key: "gg", action: "goto-top" },
+    { key: "n", action: "search-next" },
+    { key: "N", action: "search-prev" },
+    { key: "c", action: "comment" },
+    { key: "l", action: "thread-list" },
+    { key: "r", action: "resolve" },
+    { key: "R", action: "resolve-all" },
+    { key: "dd", action: "delete-draft" },
+    { key: "a", action: "approve" },
+    { key: "]t", action: "next-thread" },
+    { key: "[t", action: "prev-thread" },
+    { key: "]r", action: "next-unread" },
+    { key: "[r", action: "prev-unread" },
+    { key: "?", action: "help" },
+    { key: "/", action: "search" },
+    { key: ":", action: "command-mode" },
+  ];
+  const keybinds = createKeybindRegistry(bindings);
+
   refreshPager();
   renderer.start();
 
@@ -451,173 +474,140 @@ export async function runTui(
       }
 
       // Normal mode keybindings
-      switch (key.name) {
-        case "j":
-        case "down": {
+      const action = keybinds.match(key);
+
+      // Show pending sequence hint
+      if (!action) {
+        const p = keybinds.pending();
+        if (p) {
+          bottomBar.text.content = ` ${p}`;
+          renderer.requestRender();
+        }
+        return;
+      }
+
+      switch (action) {
+        case "cursor-down":
           if (state.cursorLine < state.lineCount) {
             state.cursorLine++;
             ensureCursorVisible();
             refreshPager();
           }
           break;
-        }
-        case "k":
-        case "up": {
+        case "cursor-up":
           if (state.cursorLine > 1) {
             state.cursorLine--;
             ensureCursorVisible();
             refreshPager();
           }
           break;
-        }
-        case "d": {
-          // Ctrl+D — half page down
-          if (key.ctrl) {
-            if (deletePendingTimer) { clearTimeout(deletePendingTimer); deletePendingTimer = null; }
-            const half = Math.max(1, Math.floor(pageSize() / 2));
-            state.cursorLine = Math.min(state.cursorLine + half, state.lineCount);
-            ensureCursorVisible();
-            refreshPager();
-          } else {
-            // d without ctrl — delete draft comment (dd = double-tap within 500ms)
-            refreshPager();
-            const thread = state.threadAtLine(state.cursorLine);
-            if (!thread) break;
-            if (deletePendingTimer) {
-              // Second d within 500ms — execute delete
-              clearTimeout(deletePendingTimer);
-              deletePendingTimer = null;
-              const hadReviewerMsg = thread.messages.some((m) => m.author === "reviewer");
-              if (hadReviewerMsg) {
-                state.deleteLastDraftMessage(thread.id);
-                appendEvent(jsonlPath, { type: "delete", threadId: thread.id, author: "reviewer", ts: Date.now() });
-                refreshPager();
-                bottomBar.text.content = " \u2714 Deleted draft comment";
-                renderer.requestRender();
-                setTimeout(() => { refreshPager(); }, 1500);
-              } else {
-                bottomBar.text.content = " No reviewer message to delete";
-                renderer.requestRender();
-                setTimeout(() => { refreshPager(); }, 1500);
-              }
-            } else {
-              // First d — show hint and start timer
-              bottomBar.text.content = " Press d again to delete";
-              renderer.requestRender();
-              deletePendingTimer = setTimeout(() => {
-                deletePendingTimer = null;
-                refreshPager();
-              }, 500);
-            }
-          }
-          break;
-        }
-        case "u": {
-          // Ctrl+U — half page up
-          if (key.ctrl) {
-            const half = Math.max(1, Math.floor(pageSize() / 2));
-            state.cursorLine = Math.max(state.cursorLine - half, 1);
-            ensureCursorVisible();
-            refreshPager();
-          }
-          break;
-        }
-        case "n": {
-          if (!key.shift) {
-            if (searchQuery) {
-              const match = findNextMatch(state.specLines, searchQuery, state.cursorLine, 1);
-              if (match !== null) {
-                state.cursorLine = match;
-                ensureCursorVisible();
-              }
-            } else {
-              bottomBar.text.content = " No active search \u2014 use / to search";
-              renderer.requestRender();
-              setTimeout(() => { refreshPager(); }, 1500);
-            }
-          } else {
-            // Shift+N = prev search match
-            if (searchQuery) {
-              const match = findNextMatch(state.specLines, searchQuery, state.cursorLine, -1);
-              if (match !== null) {
-                state.cursorLine = match;
-                ensureCursorVisible();
-              }
-            } else {
-              bottomBar.text.content = " No active search \u2014 use / to search";
-              renderer.requestRender();
-              setTimeout(() => { refreshPager(); }, 1500);
-            }
-          }
+        case "half-page-down": {
+          const half = Math.max(1, Math.floor(pageSize() / 2));
+          state.cursorLine = Math.min(state.cursorLine + half, state.lineCount);
+          ensureCursorVisible();
           refreshPager();
           break;
         }
-        case "c": {
-          showCommentInput();
+        case "half-page-up": {
+          const half = Math.max(1, Math.floor(pageSize() / 2));
+          state.cursorLine = Math.max(state.cursorLine - half, 1);
+          ensureCursorVisible();
+          refreshPager();
           break;
         }
-        case "l": {
-          // Thread list
-          showThreadListOverlay();
+        case "goto-bottom":
+          state.cursorLine = state.lineCount;
+          ensureCursorVisible();
+          refreshPager();
           break;
-        }
-        case "r": {
-          if (!key.shift) {
-            // Resolve thread at cursor
-            const thread = state.threadAtLine(state.cursorLine);
-            if (thread) {
-              const wasResolved = thread.status === "resolved";
-              state.resolveThread(thread.id);
-              state.markRead(thread.id);
-              appendEvent(jsonlPath, { type: wasResolved ? "unresolve" : "resolve", threadId: thread.id, author: "reviewer", ts: Date.now() });
-              refreshPager();
-              const msg = wasResolved
-                ? ` \u21a9 Reopened thread #${thread.id}`
-                : ` \u2714 Resolved thread #${thread.id}`;
-              bottomBar.text.content = msg;
-              renderer.requestRender();
-              setTimeout(() => { refreshPager(); }, 1500);
+        case "goto-top":
+          state.cursorLine = 1;
+          ensureCursorVisible();
+          refreshPager();
+          break;
+        case "search-next":
+          if (searchQuery) {
+            const match = findNextMatch(state.specLines, searchQuery, state.cursorLine, 1);
+            if (match !== null) {
+              state.cursorLine = match;
+              ensureCursorVisible();
             }
           } else {
-            // Shift+R = resolve all pending
-            const { pending } = state.activeThreadCount();
-            const pendingThreads = state.threads.filter(t => t.status === "pending");
-            state.resolveAllPending();
-            for (const t of pendingThreads) {
-              appendEvent(jsonlPath, { type: "resolve", threadId: t.id, author: "reviewer", ts: Date.now() });
+            bottomBar.text.content = " No active search \u2014 use / to search";
+            renderer.requestRender();
+            setTimeout(() => { refreshPager(); }, 1500);
+          }
+          refreshPager();
+          break;
+        case "search-prev":
+          if (searchQuery) {
+            const match = findNextMatch(state.specLines, searchQuery, state.cursorLine, -1);
+            if (match !== null) {
+              state.cursorLine = match;
+              ensureCursorVisible();
             }
+          } else {
+            bottomBar.text.content = " No active search \u2014 use / to search";
+            renderer.requestRender();
+            setTimeout(() => { refreshPager(); }, 1500);
+          }
+          refreshPager();
+          break;
+        case "comment":
+          showCommentInput();
+          break;
+        case "thread-list":
+          showThreadListOverlay();
+          break;
+        case "resolve": {
+          const thread = state.threadAtLine(state.cursorLine);
+          if (thread) {
+            const wasResolved = thread.status === "resolved";
+            state.resolveThread(thread.id);
+            state.markRead(thread.id);
+            appendEvent(jsonlPath, { type: wasResolved ? "unresolve" : "resolve", threadId: thread.id, author: "reviewer", ts: Date.now() });
             refreshPager();
-            bottomBar.text.content = ` \u2714 Resolved ${pending} pending thread(s)`;
+            const msg = wasResolved
+              ? ` \u21a9 Reopened thread #${thread.id}`
+              : ` \u2714 Resolved thread #${thread.id}`;
+            bottomBar.text.content = msg;
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
           break;
         }
-        case "g": {
-          if (key.shift) {
-            // G (shift+g) — go to last line
-            state.cursorLine = state.lineCount;
-            ensureCursorVisible();
+        case "resolve-all": {
+          const { pending } = state.activeThreadCount();
+          const pendingThreads = state.threads.filter(t => t.status === "pending");
+          state.resolveAllPending();
+          for (const t of pendingThreads) {
+            appendEvent(jsonlPath, { type: "resolve", threadId: t.id, author: "reviewer", ts: Date.now() });
+          }
+          refreshPager();
+          bottomBar.text.content = ` \u2714 Resolved ${pending} pending thread(s)`;
+          renderer.requestRender();
+          setTimeout(() => { refreshPager(); }, 1500);
+          break;
+        }
+        case "delete-draft": {
+          const thread = state.threadAtLine(state.cursorLine);
+          if (!thread) break;
+          const hadReviewerMsg = thread.messages.some((m) => m.author === "reviewer");
+          if (hadReviewerMsg) {
+            state.deleteLastDraftMessage(thread.id);
+            appendEvent(jsonlPath, { type: "delete", threadId: thread.id, author: "reviewer", ts: Date.now() });
             refreshPager();
+            bottomBar.text.content = " \u2714 Deleted draft comment";
+            renderer.requestRender();
+            setTimeout(() => { refreshPager(); }, 1500);
           } else {
-            // g — first of gg sequence
-            if (gPendingTimer) {
-              // Second g within 500ms — go to first line
-              clearTimeout(gPendingTimer);
-              gPendingTimer = null;
-              state.cursorLine = 1;
-              ensureCursorVisible();
-              refreshPager();
-            } else {
-              gPendingTimer = setTimeout(() => {
-                gPendingTimer = null;
-              }, 500);
-            }
+            bottomBar.text.content = " No reviewer message to delete";
+            renderer.requestRender();
+            setTimeout(() => { refreshPager(); }, 1500);
           }
           break;
         }
-        case "a": {
-          // Approve
+        case "approve":
           if (state.canApprove()) {
             const confirmOverlay = createConfirm({
               renderer,
@@ -632,105 +622,63 @@ export async function runTui(
               },
             });
             showOverlay(confirmOverlay);
-            return;
           } else {
-            // Show why approval is blocked
             const { open, pending } = state.activeThreadCount();
             const total = open + pending;
-            const msg =
-              total === 0
-                ? "No threads to approve"
-                : `${total} thread${total !== 1 ? "s" : ""} still open/pending`;
+            const msg = total === 0
+              ? "No threads to approve"
+              : `${total} thread${total !== 1 ? "s" : ""} still open/pending`;
             bottomBar.text.content = ` \u26a0  ${msg}`;
             renderer.requestRender();
-            setTimeout(() => {
-              refreshPager();
-            }, 2000);
+            setTimeout(() => { refreshPager(); }, 2000);
           }
           break;
-        }
-        default: {
-          // Handle bracket-pending sequences (]t / [t / ]r / [r)
-          if (bracketPending !== null) {
-            const pending = bracketPending;
-            bracketPending = null;
-            if (bracketPendingTimer) { clearTimeout(bracketPendingTimer); bracketPendingTimer = null; }
-            if (key.name === "t" || key.sequence === "t") {
-              if (pending === "]") {
-                const next = state.nextActiveThread();
-                if (next !== null) {
-                  state.cursorLine = next;
-                  ensureCursorVisible();
-                  refreshPager();
-                }
-              } else {
-                const prev = state.prevActiveThread();
-                if (prev !== null) {
-                  state.cursorLine = prev;
-                  ensureCursorVisible();
-                  refreshPager();
-                }
-              }
-            } else if (key.name === "r" || key.sequence === "r") {
-              if (pending === "]") {
-                const nextLine = state.nextUnreadThread();
-                if (nextLine !== null) {
-                  state.cursorLine = nextLine;
-                  ensureCursorVisible();
-                  refreshPager();
-                }
-              } else {
-                const prevLine = state.prevUnreadThread();
-                if (prevLine !== null) {
-                  state.cursorLine = prevLine;
-                  ensureCursorVisible();
-                  refreshPager();
-                }
-              }
-            }
-            refreshPager(); // clear the bracket hint
-            break;
-          }
-          // Check for "]" or "[" to start bracket sequence
-          if (key.sequence === "]") {
-            bracketPending = "]";
-            bottomBar.text.content = " ]...";
-            renderer.requestRender();
-            bracketPendingTimer = setTimeout(() => {
-              bracketPending = null;
-              bracketPendingTimer = null;
-              refreshPager();
-            }, 500);
-            break;
-          }
-          if (key.sequence === "[") {
-            bracketPending = "[";
-            bottomBar.text.content = " [...";
-            renderer.requestRender();
-            bracketPendingTimer = setTimeout(() => {
-              bracketPending = null;
-              bracketPendingTimer = null;
-              refreshPager();
-            }, 500);
-            break;
-          }
-          // Check for "?" to show help overlay
-          if (key.sequence === "?") {
-            showHelpOverlay();
-            break;
-          }
-          // Check for "/" to enter search mode
-          if (key.sequence === "/") {
-            showSearchOverlay();
-            break;
-          }
-          // Check for ":" to enter command mode
-          if (key.sequence === ":") {
-            commandBuffer = "";
+        case "next-thread": {
+          const next = state.nextActiveThread();
+          if (next !== null) {
+            state.cursorLine = next;
+            ensureCursorVisible();
             refreshPager();
           }
           break;
         }
+        case "prev-thread": {
+          const prev = state.prevActiveThread();
+          if (prev !== null) {
+            state.cursorLine = prev;
+            ensureCursorVisible();
+            refreshPager();
+          }
+          break;
+        }
+        case "next-unread": {
+          const nextLine = state.nextUnreadThread();
+          if (nextLine !== null) {
+            state.cursorLine = nextLine;
+            ensureCursorVisible();
+            refreshPager();
+          }
+          break;
+        }
+        case "prev-unread": {
+          const prevLine = state.prevUnreadThread();
+          if (prevLine !== null) {
+            state.cursorLine = prevLine;
+            ensureCursorVisible();
+            refreshPager();
+          }
+          break;
+        }
+        case "help":
+          showHelpOverlay();
+          break;
+        case "search":
+          showSearchOverlay();
+          break;
+        case "command-mode":
+          commandBuffer = "";
+          refreshPager();
+          break;
       }
     });
   });
