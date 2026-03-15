@@ -50,7 +50,7 @@ function createThreadView(
     { key: "NORMAL", action: "" },
     { key: "c", action: "reply" },
     { key: "r", action: "resolve" },
-    { key: "q", action: "close" },
+    { key: "q/Esc", action: "close" },
   ];
   const insertHints = [
     { key: "INSERT", action: "" },
