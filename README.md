@@ -1,6 +1,6 @@
 # Revspec
 
-A review tool for AI-generated spec documents with real-time AI conversation. Comment on specific lines, get AI replies instantly, resolve discussions, and approve — all without leaving the terminal.
+A review tool for AI-generated spec documents with real-time AI conversation. Comment on specific lines, get AI replies instantly, resolve discussions, submit for rewrites, and approve — all without leaving the terminal.
 
 ## Why
 
@@ -27,20 +27,7 @@ cd revspec && bun install && bun link
 revspec spec.md
 ```
 
-Opens a TUI in line mode with vim-style navigation. Press `c` on any line to open a thread and start commenting.
-
-### Markdown rendering
-
-Revspec renders markdown in-place (toggle with `m`):
-
-- **Headings** — colored and bold, `#`–`######`
-- **Inline** — bold (`**`/`__`), italic (`*`/`_`), bold-italic (`***`), strikethrough (`~~`), `code`, [links](url)
-- **Fenced code blocks** — ` ``` ` markers dimmed, body in green
-- **Tables** — box-drawing borders, header row bolded, auto-column-widths
-- **Lists** — unordered (`•`), ordered, task lists (`☐`/`☑`)
-- **Blockquotes** — bar gutter, italicized text
-- **Cursor line** highlighting across all elements
-- **Search highlights** — colored match segments
+Opens a TUI with vim-style navigation. Press `c` on any line to open a thread and start commenting.
 
 ### Keybindings
 
@@ -52,7 +39,7 @@ Revspec renders markdown in-place (toggle with `m`):
 | `gg` / `G` | Go to top / bottom |
 | `Ctrl+D/U` | Half page down/up |
 | `zz` | Center cursor line in viewport |
-| `/` | Search (smartcase: lowercase = case-insensitive, any uppercase = case-sensitive) |
+| `/` | Search (smartcase) |
 | `n/N` | Next/prev search match |
 | `Esc` | Clear search highlights |
 | `]t/[t` | Next/prev thread |
@@ -67,8 +54,8 @@ Revspec renders markdown in-place (toggle with `m`):
 | `R` | Resolve all pending |
 | `dd` | Delete thread (with confirm) |
 | `T` | List threads |
-| `S` | Submit for rewrite |
-| `A` | Approve spec |
+| `Shift-S` | Submit for rewrite (AI updates spec, TUI reloads) |
+| `Shift-A` | Approve spec (finalize and exit) |
 
 **Commands**
 
@@ -76,57 +63,78 @@ Revspec renders markdown in-place (toggle with `m`):
 |-----|--------|
 | `:q` | Quit (warns if unresolved threads) |
 | `:q!` | Force quit |
-| `:{N}` | Jump to line N (e.g. `:42`) |
+| `:{N}` | Jump to line N |
 | `Ctrl+C` | Force quit |
 | `?` | Help |
+
+**Popups**
+
+| Key | Action |
+|-----|--------|
+| `y/Enter` | Confirm / select |
+| `q/Esc` | Cancel / close |
 
 ### Thread popup
 
 The thread popup has two modes:
 
 - **Insert mode** — type your comment, `Tab` sends, `Esc` switches to normal mode
-- **Normal mode** — `j/k` and `Ctrl+D/U` scroll the conversation, `gg/G` top/bottom, `c` to reply, `r` to resolve, `Esc` to close
+- **Normal mode** — `j/k` and `Ctrl+D/U` scroll the conversation, `gg/G` top/bottom, `c` to reply, `r` to resolve, `q/Esc` to close
+
+### Markdown rendering
+
+Revspec renders markdown in-place:
+
+- **Headings** — colored and bold, `#`–`######`
+- **Inline** — bold, italic, bold-italic, strikethrough, `code`, links
+- **Fenced code blocks** — markers dimmed, body in green
+- **Tables** — box-drawing borders, header row bolded, auto-column-widths
+- **Lists** — unordered, ordered, task lists
+- **Blockquotes** — bar gutter, italicized text
+- **Cursor line** highlighting and **search highlights**
 
 ## Live AI Integration
 
-Revspec supports real-time communication with AI coding tools (Claude Code, opencode, etc.) via two CLI subcommands:
+Revspec communicates with AI coding tools (Claude Code, etc.) via CLI subcommands:
 
 ### `revspec watch <file.md>`
 
-Blocks until the reviewer adds comments, then returns them with spec context:
+Blocks until the reviewer acts, then returns structured output:
 
 ```
 === New Comments ===
-Thread: t1 (line 14)
+Thread: x1a3f (line 14)
   Context:
       12: The system uses polling...
     > 14: it sends a notification via webhook.
       16: resource state.
   [reviewer]: this is unclear
 
-To reply: revspec reply spec.md t1 "<your response>"
+To reply: revspec reply spec.md x1a3f "<your response>"
 When done replying, run: revspec watch spec.md
 ```
 
+Watch exits on three events:
+- **Comment/reply** — returns thread content for AI to respond
+- **Submit (`Shift-S`)** — returns resolved thread summaries for AI to rewrite the spec
+- **Approve (`Shift-A`)** — spec is finalized
+- **Session end** — reviewer quit the TUI
+
 ### `revspec reply <file.md> <threadId> "<text>"`
 
-Sends an AI reply that appears instantly in the reviewer's TUI:
-
-```bash
-revspec reply spec.md t1 "Good point. I'll clarify the polling vs webhook distinction."
-```
+Sends an AI reply that appears instantly in the reviewer's TUI.
 
 ### The loop
 
 ```
 1. AI generates spec
-2. AI launches: revspec spec.md (in tmux pane or separate terminal)
+2. AI launches: revspec spec.md (in tmux pane)
 3. AI runs: revspec watch spec.md (blocks)
-4. Reviewer comments on lines in the TUI
-5. Watch returns with comments → AI replies → watch again
-6. Reviewer resolves threads → approves
-7. AI reads review JSON, rewrites spec, launches new round
-8. Repeat until clean approval
+4. Reviewer comments → AI replies → watch again
+5. Reviewer resolves threads → presses Shift-S (submit)
+6. Watch returns resolved thread summaries → AI rewrites spec
+7. TUI reloads with new spec → reviewer continues reviewing
+8. Repeat 3-7 until Shift-A (approve)
 ```
 
 ### Claude Code skill
@@ -142,46 +150,31 @@ Then use `/revspec` in Claude Code after generating a spec.
 ## Testing
 
 ```bash
-bun test                    # Run all tests (~70s)
-bun test test/e2e           # E2E snapshot tests only (~66s)
-bun test --update-snapshots # Regenerate snapshots after UI changes
+bun run test          # Unit + integration (~3s)
+bun run test:e2e      # E2E snapshot tests (~7s)
+bun run test:all      # Everything
 ```
 
-E2E tests use `bun-pty` to spawn revspec in a pseudo-terminal (80x24), send keystrokes, capture plain-text screen output, and compare against saved snapshots. Covers: navigation, search, overlays (help, comment, thread list, confirm), thread creation/resolve/delete, command mode, and context-sensitive hints.
+E2E tests use `bun-pty` to spawn revspec in a pseudo-terminal (80x24), send keystrokes, capture plain-text output, and compare snapshots.
 
 ## Protocol
 
-Communication happens through a JSONL file (`spec.review.live.jsonl`) — append-only, both sides write to it. On session end, events are merged into `spec.review.json`.
+Communication happens through a JSONL file (`spec.review.live.jsonl`) — append-only, both sides write to it. The JSONL is the single source of truth for the review session.
 
 ### Event types
 
 ```jsonl
-{"type":"comment","threadId":"t1","line":14,"author":"reviewer","text":"unclear","ts":1710400000}
-{"type":"reply","threadId":"t1","author":"owner","text":"I'll fix it","ts":1710400005}
-{"type":"resolve","threadId":"t1","author":"reviewer","ts":1710400010}
-{"type":"approve","author":"reviewer","ts":1710400050}
+{"type":"comment","threadId":"x1a3f","line":14,"author":"reviewer","text":"unclear","ts":1710400000}
+{"type":"reply","threadId":"x1a3f","author":"owner","text":"I'll fix it","ts":1710400005}
+{"type":"resolve","threadId":"x1a3f","author":"reviewer","ts":1710400010}
+{"type":"submit","author":"reviewer","ts":1710400050}
+{"type":"approve","author":"reviewer","ts":1710400060}
+{"type":"session-end","author":"reviewer","ts":1710400070}
 ```
 
-### Review JSON
+The `submit` event acts as a round delimiter — the AI rewrites the spec, and the TUI reloads. Events before a `submit` reference the previous spec version.
 
-```json
-{
-  "file": "spec.md",
-  "threads": [
-    {
-      "id": "t1",
-      "line": 14,
-      "status": "resolved",
-      "messages": [
-        { "author": "reviewer", "text": "this is unclear", "ts": 1710400000 },
-        { "author": "owner", "text": "I'll restructure this section", "ts": 1710400005 }
-      ]
-    }
-  ]
-}
-```
-
-Thread statuses: `open` (owner's turn), `pending` (reviewer's turn), `resolved`, `outdated`.
+Thread statuses: `open` (awaiting AI reply), `pending` (AI replied, awaiting reviewer), `resolved`, `outdated`.
 
 ## License
 
