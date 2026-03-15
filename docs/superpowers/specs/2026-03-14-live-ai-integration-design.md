@@ -55,17 +55,17 @@ docs/specs/feature-design.review.live.jsonl    # live chat log (append-only audi
 ### Event Types
 
 ```jsonl
-{"type":"comment","threadId":"t1","line":14,"author":"human","text":"this section is unclear","ts":1710400000}
-{"type":"reply","threadId":"t1","author":"ai","text":"I can restructure around X...","ts":1710400005}
-{"type":"resolve","threadId":"t1","author":"human","ts":1710400010}
-{"type":"unresolve","threadId":"t1","author":"human","ts":1710400015}
-{"type":"reply","threadId":"t1","author":"human","text":"actually what about Y?","ts":1710400020}
-{"type":"reply","threadId":"t1","author":"ai","text":"Y works, here's how...","ts":1710400025}
-{"type":"resolve","threadId":"t1","author":"human","ts":1710400030}
-{"type":"comment","threadId":"t2","line":38,"author":"human","text":"missing error case","ts":1710400035}
-{"type":"reply","threadId":"t2","author":"ai","text":"good catch, I'll add...","ts":1710400040}
-{"type":"resolve","threadId":"t2","author":"human","ts":1710400045}
-{"type":"approve","author":"human","ts":1710400050}
+{"type":"comment","threadId":"t1","line":14,"author":"reviewer","text":"this section is unclear","ts":1710400000}
+{"type":"reply","threadId":"t1","author":"owner","text":"I can restructure around X...","ts":1710400005}
+{"type":"resolve","threadId":"t1","author":"reviewer","ts":1710400010}
+{"type":"unresolve","threadId":"t1","author":"reviewer","ts":1710400015}
+{"type":"reply","threadId":"t1","author":"reviewer","text":"actually what about Y?","ts":1710400020}
+{"type":"reply","threadId":"t1","author":"owner","text":"Y works, here's how...","ts":1710400025}
+{"type":"resolve","threadId":"t1","author":"reviewer","ts":1710400030}
+{"type":"comment","threadId":"t2","line":38,"author":"reviewer","text":"missing error case","ts":1710400035}
+{"type":"reply","threadId":"t2","author":"owner","text":"good catch, I'll add...","ts":1710400040}
+{"type":"resolve","threadId":"t2","author":"reviewer","ts":1710400045}
+{"type":"approve","author":"reviewer","ts":1710400050}
 ```
 
 ### Event Schema
@@ -75,7 +75,7 @@ docs/specs/feature-design.review.live.jsonl    # live chat log (append-only audi
 | `type` | string | yes | `comment`, `reply`, `resolve`, `unresolve`, `approve`, `delete`, `round` |
 | `threadId` | string | yes (except `approve` and `round`) | Thread identifier (e.g., `t1`) |
 | `line` | integer | only for `comment` | 1-indexed line anchor in spec |
-| `author` | string | yes | `human` or `ai` |
+| `author` | string | yes | `reviewer` or `owner` |
 | `text` | string | only for `comment`/`reply` | Message content |
 | `ts` | integer | yes | `Date.now()` timestamp |
 | `round` | integer | only for `round` | Round number (1-indexed) |
@@ -84,7 +84,7 @@ docs/specs/feature-design.review.live.jsonl    # live chat log (append-only audi
 
 - Append-only — neither side edits or truncates the file
 - `comment` creates a new thread; `reply` adds to an existing one
-- Only humans create threads (AI only replies)
+- Only reviewers create threads (owners only reply)
 - Thread IDs are auto-incremented by the TUI (`t1`, `t2`, ...). IDs are globally unique across rounds because `nextThreadId()` scans all threads from both the review JSON (prior rounds) and the replayed JSONL (current session) to find the highest existing ID.
 - `approve` signals the session is complete
 - Write atomicity: each event is a single `appendFileSync` call with a trailing `\n`. On read, discard any final line that does not parse as valid JSON (partial write from crash/kill).
@@ -96,6 +96,7 @@ Both sides track their read position by **byte offset** (not timestamp). Each re
 - The `watch` CLI stores its byte offset in a state file: `spec.review.live.offset` (deleted on session end)
 - The TUI tracks its offset in memory (lives as long as the process)
 - Byte offset is more reliable than timestamp — no risk of two events sharing the same millisecond
+- **Alignment safety:** after seeking to a byte offset, skip to the next `\n` boundary before parsing (discard any partial first line). This handles the case where the offset lands mid-line due to a concurrent write. The first read always starts at byte 0 so no alignment is needed.
 
 ### Concurrency Model
 
@@ -112,12 +113,12 @@ During a live session, thread status is derived from the JSONL event stream:
 
 | Last event on thread | Derived status |
 |---------------------|----------------|
-| `comment` (human) | `open` (AI's turn) |
-| `reply` (human) | `open` (AI's turn) |
-| `reply` (ai) | `pending` (human's turn) |
+| `comment` (reviewer) | `open` (owner's turn) |
+| `reply` (reviewer) | `open` (owner's turn) |
+| `reply` (owner) | `pending` (reviewer's turn) |
 | `resolve` | `resolved` |
-| `unresolve` (human) | `open` (AI's turn — human reopened the thread) |
-| `delete` (human) | status unchanged (message removed, thread state unaffected unless last message deleted — see Delete Behavior) |
+| `unresolve` (reviewer) | `open` (owner's turn — reviewer reopened the thread) |
+| `delete` (reviewer) | status unchanged (message removed, thread state unaffected unless last message deleted — see Delete Behavior) |
 
 The `outdated` status is not used during live sessions (the spec is frozen, no anchors move). It is set by the AI between rounds when rewriting the spec and updating anchors.
 
@@ -128,14 +129,14 @@ In batch mode, `dd` deletes the last draft message from in-memory state. In live
 Live mode behavior: `dd` appends a `delete` event to the JSONL:
 
 ```jsonl
-{"type":"delete","threadId":"t1","author":"human","ts":1710400060}
+{"type":"delete","threadId":"t1","author":"reviewer","ts":1710400060}
 ```
 
-This signals that the last human message on the thread should be treated as retracted. The merge step excludes deleted messages from the final JSON. The `watch` command, on seeing a `delete` event, includes it in its output so the AI knows to disregard the deleted comment:
+This signals that the last reviewer message on the thread should be treated as retracted. The merge step excludes deleted messages from the final JSON. The `watch` command, on seeing a `delete` event, includes it in its output so the owner knows to disregard the deleted comment:
 
 ```
 --- Deleted ---
-[t1] line 14: human retracted last message
+[t1] line 14: reviewer retracted last message
 ```
 
 If the AI has already replied to the deleted comment, the AI's reply remains in the JSONL (append-only). The human can resolve the thread to dismiss both.
@@ -169,25 +170,26 @@ The merge produces the same structured `ReviewFile` format used today:
       "line": 14,
       "status": "resolved",
       "messages": [
-        { "author": "human", "text": "this section is unclear", "ts": 1710400000 },
-        { "author": "ai", "text": "I can restructure around X...", "ts": 1710400005 },
-        { "author": "human", "text": "actually what about Y?", "ts": 1710400020 },
-        { "author": "ai", "text": "Y works, here's how...", "ts": 1710400025 }
+        { "author": "reviewer", "text": "this section is unclear" },
+        { "author": "owner", "text": "I can restructure around X..." },
+        { "author": "reviewer", "text": "actually what about Y?" },
+        { "author": "owner", "text": "Y works, here's how..." }
       ]
     }
   ]
 }
 ```
 
-The `Message` type gains an optional `ts` field (optional for backward compatibility with existing review files):
+The `Message` type in the review JSON is unchanged:
 
 ```typescript
 interface Message {
-  author: "human" | "ai"
+  author: "reviewer" | "owner"
   text: string
-  ts?: number  // Date.now(), optional for backward compat with pre-live review files
 }
 ```
+
+Timestamps (`ts`) exist only in JSONL events, not in the merged review JSON. The JSONL is the audit log with timing; the JSON is the clean structured state.
 
 ### Draft File Replacement
 
@@ -246,9 +248,9 @@ $ revspec watch spec.md
 
 [t1] line 14 (reply):
   Thread history:
-    human: "this section is unclear — polling or webhook?"
-    ai: "Good catch. I'll clarify — it uses polling to detect changes, then sends a webhook notification."
-    human: "that still doesn't explain the 30-second interval — why not event-driven?"
+    reviewer: "this section is unclear — polling or webhook?"
+    owner: "Good catch. I'll clarify — it uses polling to detect changes, then sends a webhook notification."
+    reviewer: "that still doesn't explain the 30-second interval — why not event-driven?"
   Comment: "that still doesn't explain the 30-second interval — why not event-driven?"
 
 To reply: revspec reply spec.md <threadId> "<your response>"
@@ -262,15 +264,15 @@ $ revspec watch spec.md
 
 --- Resolved ---
 
-[t2] line 38: resolved by human
+[t2] line 38: resolved by reviewer
 
 --- Replies ---
 
 [t1] line 14 (reply):
   Thread history:
-    human: "polling or webhook?"
-    ai: "It's event-driven now. Changed the spec."
-    human: "perfect, but update the diagram too"
+    reviewer: "polling or webhook?"
+    owner: "It's event-driven now. Changed the spec."
+    reviewer: "perfect, but update the diagram too"
   Comment: "perfect, but update the diagram too"
 
 To reply: revspec reply spec.md <threadId> "<your response>"
@@ -295,7 +297,7 @@ Review file: docs/specs/feature-design.review.json
 
 **Behavior:**
 - Reads JSONL from last-known byte offset stored in `spec.review.live.offset` (created on first call, deleted on session end)
-- Filters for new `author: "human"` events (comments, replies, resolves)
+- Filters for new `author: "reviewer"` events (comments, replies, resolves)
 - Blocks (via `fs.watch()` on the JSONL file) until new human events arrive
 - If JSONL file does not exist yet, blocks until it appears (human has not launched revspec yet)
 - Outputs human events in a structured, AI-readable format (human-readable text, not JSON — AI tools parse natural language well)
@@ -333,7 +335,7 @@ $ revspec reply spec.md t1 "I can restructure this section around X. The key cha
 **Behavior:**
 - Validates the thread ID exists in the JSONL
 - Rejects empty text (exit 1)
-- Appends a `{"type":"reply","threadId":"...","author":"ai","text":"...","ts":...}` line. Newlines in text are preserved via JSON string escaping (`\n`).
+- Appends a `{"type":"reply","threadId":"...","author":"owner","text":"...","ts":...}` line. Newlines in text are preserved via JSON string escaping (`\n`).
 - Replying to a resolved thread is allowed — the thread reverts to `pending` (see AI Reply to Resolved Thread). No warning is printed.
 - Exits immediately (exit 0 on success, exit 1 if thread ID not found or empty text)
 - The TUI detects the file change and renders the AI reply
@@ -352,6 +354,12 @@ The AI tool's job is trivial:
 4. Run `revspec watch` again (loop)
 
 No knowledge of JSONL, timestamps, file formats, or revspec internals needed. Any AI tool that can run shell commands works — Claude Code, opencode, Cursor, etc.
+
+### AI Context Model
+
+**During the loop:** the AI gets incremental context from each `watch` return. Each batch includes full thread history for active threads, so the AI has enough context to reply without reading extra files. The AI does not need to track cumulative state — `watch` provides everything needed per batch.
+
+**On approval (spec rewrite):** the AI reads `spec.review.json` (the merged final state) for a full snapshot of all threads and their resolutions. This is the authoritative source for what feedback to incorporate into the spec rewrite.
 
 ## Mode Detection and Startup
 
@@ -383,7 +391,7 @@ The spec file is frozen during a live session. Revspec records the spec file's m
 
 The TUI watches `spec.review.live.jsonl` via `fs.watch()`. On change:
 1. Read new lines from last byte offset
-2. Filter for `author: "ai"` events
+2. Filter for `author: "owner"` events
 3. Update thread state in `ReviewState` (add message, update indicators)
 4. Re-render affected components
 
@@ -496,7 +504,7 @@ If revspec is launched without an AI watcher (`revspec spec.md` with no `revspec
 
 ### Existing Review Files
 
-The `ts` field on `Message` is optional. Existing `spec.review.json` files without timestamps continue to work. New messages written by the live system include timestamps; old messages do not. No migration needed.
+The `Message` type changes `author` values from `"human" | "ai"` to `"reviewer" | "owner"`. Existing `spec.review.json` files using the old values will need a one-time migration (find-and-replace in the JSON). The `Message` type does not include `ts` — timestamps exist only in JSONL events.
 
 ## Open Questions
 

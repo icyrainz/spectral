@@ -1,0 +1,65 @@
+{
+  "file": "/Users/tuephan/repo/revspec/docs/superpowers/specs/2026-03-14-live-ai-integration-design.md",
+  "threads": [
+    {
+      "id": "t1",
+      "line": 95,
+      "status": "pending",
+      "messages": [
+        {
+          "author": "human",
+          "text": "would this cause parsing issue if the byte is not aligned to the text"
+        },
+        {
+          "author": "ai",
+          "text": "Good catch. Added alignment safety: after seeking to a byte offset, skip to the next \\n boundary before parsing (discard any partial first line). First read always starts at byte 0 so no alignment needed there."
+        }
+      ]
+    },
+    {
+      "id": "t2",
+      "line": 188,
+      "status": "pending",
+      "messages": [
+        {
+          "author": "human",
+          "text": "this is actually not needed, the ts is not required if not needed, there is no ts in pre-live review files"
+        },
+        {
+          "author": "ai",
+          "text": "Agreed. Removed ts from the Message type — timestamps only exist in JSONL events, not in the merged review JSON. Cleaner separation."
+        }
+      ]
+    },
+    {
+      "id": "t3",
+      "line": 249,
+      "status": "pending",
+      "messages": [
+        {
+          "author": "human",
+          "text": "let's change this, not human and ai, just reviewer and owner"
+        },
+        {
+          "author": "ai",
+          "text": "Done. Changed author values throughout the spec from human/ai to reviewer/owner. More generic and decoupled — works whether it's a human reviewing AI work or any other combination."
+        }
+      ]
+    },
+    {
+      "id": "t4",
+      "line": 346,
+      "status": "pending",
+      "messages": [
+        {
+          "author": "human",
+          "text": "at the end of the loop, does AI got a new snapshot of everything or it already knows all the incremental changes?"
+        },
+        {
+          "author": "ai",
+          "text": "Added an 'AI Context Model' section: during the loop, the AI gets incremental context from each watch return (full thread history per batch). On approval, the AI reads spec.review.json for the full snapshot to use when rewriting the spec."
+        }
+      ]
+    }
+  ]
+}
