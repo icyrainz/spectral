@@ -232,9 +232,13 @@ function createThreadView(
 
   // Start in insert mode, scroll conversation to bottom
   setTimeout(() => {
-    scrollBox.scrollTo(scrollBox.scrollHeight);
     textarea.focus();
+    scrollBox.scrollTo(scrollBox.scrollHeight);
     renderer.requestRender();
+    setTimeout(() => {
+      scrollBox.scrollTo(scrollBox.scrollHeight);
+      renderer.requestRender();
+    }, 50);
   }, 0);
 
   function appendToConversation(msg: Message): void {
