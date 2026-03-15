@@ -30,11 +30,11 @@ Install the `/revspec` skill for Claude Code:
 /plugin install revspec
 ```
 
-Or manually (symlink, stays updated with repo):
+Or manually (clone + symlink, stays updated with `git pull`):
 
 ```bash
-mkdir -p ~/.claude/skills
-ln -sfn /path/to/revspec/skills/revspec ~/.claude/skills/revspec
+git clone https://github.com/icyrainz/revspec.git ~/.local/share/revspec
+ln -sfn ~/.local/share/revspec/skills/revspec ~/.claude/skills/revspec
 ```
 
 ## Usage
