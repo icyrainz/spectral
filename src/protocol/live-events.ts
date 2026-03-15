@@ -42,8 +42,24 @@ export function isValidLiveEvent(value: unknown): value is LiveEvent {
     return false;
   }
 
-  // Must have a ts (timestamp)
+  // Must have a ts (timestamp) and author
   if (typeof v.ts !== "number") return false;
+  if (typeof v.author !== "string") return false;
+
+  // threadId required for all except approve and round
+  if (v.type !== "approve" && v.type !== "round") {
+    if (typeof v.threadId !== "string") return false;
+  }
+
+  // reply requires text
+  if (v.type === "reply") {
+    if (typeof v.text !== "string") return false;
+  }
+
+  // round requires round field
+  if (v.type === "round") {
+    if (typeof v.round !== "number") return false;
+  }
 
   // comment requires text and line
   if (v.type === "comment") {
@@ -176,6 +192,11 @@ export function replayEventsToThreads(events: LiveEvent[]): Thread[] {
             thread.messages.splice(i, 1);
             break;
           }
+        }
+        // Re-derive status from the new last message
+        const lastMsg = thread.messages[thread.messages.length - 1];
+        if (lastMsg) {
+          thread.status = lastMsg.author === "owner" ? "pending" : "open";
         }
         break;
       }

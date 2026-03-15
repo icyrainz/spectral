@@ -418,6 +418,20 @@ describe("replayEventsToThreads", () => {
     expect(threads[0].messages[0].text).toBe("First");
   });
 
+  it("delete re-derives status from remaining messages", () => {
+    const events: LiveEvent[] = [
+      { type: "comment", threadId: "t1", line: 3, author: "reviewer", text: "comment", ts: 1000 },
+      { type: "reply", threadId: "t1", author: "owner", text: "response", ts: 1001 },
+      { type: "reply", threadId: "t1", author: "reviewer", text: "follow up", ts: 1002 },
+      { type: "delete", threadId: "t1", author: "reviewer", ts: 1003 },
+    ];
+    const threads = replayEventsToThreads(events);
+    expect(threads).toHaveLength(1);
+    // After deleting the reviewer reply, last message is owner reply → pending
+    expect(threads[0].status).toBe("pending");
+    expect(threads[0].messages).toHaveLength(2);
+  });
+
   it("excludes empty threads after all messages deleted", () => {
     const events: LiveEvent[] = [
       {
