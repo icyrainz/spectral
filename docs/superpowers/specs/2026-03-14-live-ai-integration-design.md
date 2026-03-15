@@ -407,6 +407,10 @@ New "unread AI reply" state for threads:
 
 Viewing a thread (pressing `c` on its line) clears the "unread" state.
 
+### Timestamp Display
+
+Thread popups (comment input / thread view) render the `ts` field as ISO time (e.g., `2026-03-14 15:30:05`) next to each message. Messages without a `ts` (pre-live) show no timestamp. The raw `Date.now()` integer is never shown to the user.
+
 ### Status Bar
 
 The status bar shows new AI reply count:
