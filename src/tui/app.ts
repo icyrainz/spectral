@@ -6,10 +6,7 @@ import {
   type CliRenderer,
   type KeyEvent,
 } from "@opentui/core";
-import { readReviewFile } from "../protocol/read";
-import { writeReviewFile } from "../protocol/write";
 import { appendEvent, readEventsFromOffset, replayEventsToThreads } from "../protocol/live-events";
-import { mergeJsonlIntoReview } from "../protocol/live-merge";
 import type { Thread } from "../protocol/types";
 import { ReviewState } from "../state/review-state";
 import { createLiveWatcher, type LiveWatcher } from "./live-watcher";
@@ -33,34 +30,19 @@ import { createKeybindRegistry, type KeyBinding } from "./ui/keybinds";
 
 export async function runTui(
   specFile: string,
-  reviewPath: string,
-  draftPath: string,
   version?: string
 ): Promise<void> {
   // 1. Read spec file into lines
   const specContent = readFileSync(specFile, "utf8");
   const specLines = specContent.split("\n");
 
-  // 2. Load existing review, merge threads
-  const existingReview = readReviewFile(reviewPath);
-
-  let threads: Thread[] = [];
-  if (existingReview) {
-    threads = existingReview.threads.map((t) => ({
-      ...t,
-      messages: [...t.messages],
-    }));
-  }
-
-  // 3. Create ReviewState
-  const state = new ReviewState(specLines, threads);
+  // 2. Create ReviewState
+  const state = new ReviewState(specLines, []);
 
   // 4. Derive JSONL path and set up live protocol
   const dir = dirname(specFile);
   const base = basename(specFile, ".md");
   const jsonlPath = `${dir}/${base}.review.live.jsonl`;
-  const reviewPathForMerge = `${dir}/${base}.review.json`;
-
   // Crash recovery: replay JSONL events if file exists
   if (existsSync(jsonlPath)) {
     const { events } = readEventsFromOffset(jsonlPath, 0);
@@ -168,29 +150,9 @@ export async function runTui(
     renderer.requestRender();
   }
 
-  // Helper: merge JSONL into review JSON and clean up
-  // Track whether we have unmerged changes since last :w
-  let lastMergedOffset = 0;
-
-  function hasPendingChanges(): boolean {
-    if (!existsSync(jsonlPath)) return false;
-    const { size } = statSync(jsonlPath);
-    return size > lastMergedOffset;
-  }
-
-  function doMerge(): void {
-    const existingReviewForMerge = readReviewFile(reviewPathForMerge);
-    const merged = mergeJsonlIntoReview(jsonlPath, existingReviewForMerge, specFile);
-    writeReviewFile(reviewPathForMerge, merged);
-    if (existsSync(jsonlPath)) {
-      lastMergedOffset = statSync(jsonlPath).size;
-    }
-  }
-
-  function mergeAndExit(resolve: () => void): void {
-    doMerge();
-    // Signal to watch process that session has ended
-    appendEvent(jsonlPath, { type: "session-end", author: "reviewer", ts: Date.now() });
+  // Helper: exit the TUI cleanly
+  function exitTui(resolve: () => void, eventType: "session-end" | "approve"): void {
+    appendEvent(jsonlPath, { type: eventType, author: "reviewer", ts: Date.now() });
     liveWatcher.stop();
     keybinds.destroy();
     renderer.destroy();
@@ -218,39 +180,21 @@ export async function runTui(
   }
 
   // Process command buffer input
-  // Returns: "exit" to exit (caller should destroy+resolve), "merged" if already handled, "stay" to keep running
-  function processCommand(cmd: string, resolve: () => void): "exit" | "merged" | "stay" {
-    if (cmd === "w") {
-      // Merge JSONL -> JSON, stay open
-      doMerge();
-      setBottomBarMessage(bottomBar, " \u2714 Merged to review JSON");
-      renderer.requestRender();
-      setTimeout(() => { refreshPager(); }, 1200);
-      return "stay";
-    }
-    if (cmd === "wq" || cmd === "qw") {
-      // Merge and exit
-      mergeAndExit(resolve);
-      return "merged";
-    }
-    if (cmd === "q") {
-      // Exit only if merged (no pending changes)
-      if (hasPendingChanges()) {
-        setBottomBarMessage(bottomBar, " Unmerged changes. Use :w to save or :q! to discard");
+  function processCommand(cmd: string, resolve: () => void): "exit" | "stay" {
+    if (cmd === "q" || cmd === "wq" || cmd === "qw") {
+      const { open, pending } = state.activeThreadCount();
+      const total = open + pending;
+      if (total > 0) {
+        setBottomBarMessage(bottomBar, ` \u26a0 ${total} unresolved thread(s). Use :q! to force quit`);
         renderer.requestRender();
         setTimeout(() => { refreshPager(); }, 2000);
         return "stay";
       }
-      appendEvent(jsonlPath, { type: "session-end", author: "reviewer", ts: Date.now() });
-      liveWatcher.stop();
-      keybinds.destroy();
+      exitTui(resolve, "session-end");
       return "exit";
     }
     if (cmd === "q!") {
-      // Exit without merging
-      appendEvent(jsonlPath, { type: "session-end", author: "reviewer", ts: Date.now() });
-      liveWatcher.stop();
-      keybinds.destroy();
+      exitTui(resolve, "session-end");
       return "exit";
     }
     // :{N} — jump to line number
@@ -261,7 +205,7 @@ export async function runTui(
       refreshPager();
       return "stay";
     }
-    return "stay"; // unknown command, ignore
+    return "stay";
   }
 
   // --- Overlay launchers ---
@@ -438,12 +382,7 @@ export async function runTui(
           commandBuffer = null;
           const result = processCommand(cmd, resolve);
           if (result === "exit") {
-            renderer.destroy();
-            resolve();
-            return;
-          }
-          if (result === "merged") {
-            // mergeAndExit already called destroy+resolve
+            // exitTui already called destroy+resolve
             return;
           }
           // "stay" — don't refreshPager here, processCommand handles its own bar updates
@@ -472,13 +411,9 @@ export async function runTui(
         return;
       }
 
-      // Ctrl+C to exit — quit without merging (same as :q!)
+      // Ctrl+C to exit
       if (key.ctrl && key.name === "c") {
-        appendEvent(jsonlPath, { type: "session-end", author: "reviewer", ts: Date.now() });
-        liveWatcher.stop();
-        keybinds.destroy();
-        renderer.destroy();
-        resolve();
+        exitTui(resolve, "session-end");
         return;
       }
 
@@ -639,14 +574,14 @@ export async function runTui(
           break;
         }
         case "approve":
+          // Will be replaced by unresolvedGate in Task 6
           if (state.canApprove()) {
             const confirmOverlay = createConfirm({
               renderer,
               message: "Approve spec and proceed to implementation?",
               onConfirm: () => {
                 dismissOverlay();
-                appendEvent(jsonlPath, { type: "approve", author: "reviewer", ts: Date.now() });
-                mergeAndExit(resolve);
+                exitTui(resolve, "approve");
               },
               onCancel: () => {
                 dismissOverlay();

@@ -1,9 +1,7 @@
 #!/usr/bin/env bun
 import { existsSync } from "fs";
 import { resolve, basename, extname, dirname, join } from "path";
-import { readReviewFile } from "../src/protocol/read";
 import { runTui } from "../src/tui/app";
-import { readEventsFromOffset } from "../src/protocol/live-events";
 
 const args = process.argv.slice(2);
 const subcommand = args[0];
@@ -56,40 +54,8 @@ if (!existsSync(specPath)) {
   process.exit(1);
 }
 
-// 2. Derive review/jsonl paths from spec filename
-//    e.g. spec.md -> spec.review.json, spec.review.live.jsonl
-const specDir = dirname(specPath);
-const specBase = basename(specPath, extname(specPath)); // e.g. "spec"
-const reviewPath = join(specDir, `${specBase}.review.json`);
-const jsonlPath = join(specDir, `${specBase}.review.live.jsonl`);
-const draftPath = join(specDir, `${specBase}.review.draft.json`);
+// 2. Launch TUI
+const pkg = await Bun.file(new URL("../package.json", import.meta.url)).json();
+await runTui(specPath, pkg.version);
 
-// 3. Launch TUI (skip if REVSPEC_SKIP_TUI=1)
-if (process.env.REVSPEC_SKIP_TUI !== "1") {
-  const pkg = await Bun.file(new URL("../package.json", import.meta.url)).json();
-  await runTui(specPath, reviewPath, draftPath, pkg.version);
-}
-
-// 4. After TUI exits, check if approved via JSONL
-if (existsSync(jsonlPath)) {
-  const { events } = readEventsFromOffset(jsonlPath, 0);
-  const wasApproved = events.some(e => e.type === "approve");
-  if (wasApproved && existsSync(reviewPath)) {
-    console.log(`APPROVED: ${reviewPath}`);
-    process.exit(0);
-  }
-}
-
-// 5. Check if review file exists with open/pending threads
-const existingReview = readReviewFile(reviewPath);
-if (existingReview) {
-  const hasOpenOrPending = existingReview.threads.some(
-    (t) => t.status === "open" || t.status === "pending"
-  );
-  if (hasOpenOrPending) {
-    process.stdout.write(`${reviewPath}\n`);
-  }
-}
-
-// Otherwise print nothing
 process.exit(0);
