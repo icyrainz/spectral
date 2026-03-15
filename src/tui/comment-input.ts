@@ -201,7 +201,7 @@ function createThreadView(
   container.add(textarea);
 
   const hint = new TextRenderable(renderer, {
-    content: " [Tab] send  [Ctrl+R] resolve  [PgUp/PgDn] scroll  [Esc] close",
+    content: " [Tab] send  [Ctrl+R] resolve  [Ctrl+D/U] scroll  [Esc] close",
     width: "100%",
     height: 1,
     fg: theme.hintFg,
@@ -238,17 +238,21 @@ function createThreadView(
     if (key.ctrl && key.name === "r") {
       key.preventDefault(); key.stopPropagation(); onResolve(); return;
     }
-    // PageUp/PageDown scroll conversation (no conflict with textarea)
-    if (key.name === "pageup") {
+    // Ctrl+D / Ctrl+U scroll conversation history
+    // These conflict with textarea (Ctrl+U = delete-to-line-start), so we
+    // blur textarea, scroll, then refocus on next tick
+    if (key.ctrl && (key.name === "d" || key.name === "u")) {
       key.preventDefault(); key.stopPropagation();
-      scrollBox.scrollBy({ x: 0, y: -Math.max(1, Math.floor(scrollBox.visibleHeight / 2)) });
+      const amount = Math.max(1, Math.floor(scrollBox.visibleHeight / 2));
+      textarea.blur();
+      if (key.name === "d") {
+        scrollBox.scrollBy({ x: 0, y: amount });
+      } else {
+        scrollBox.scrollBy({ x: 0, y: -amount });
+      }
       renderer.requestRender();
-      return;
-    }
-    if (key.name === "pagedown") {
-      key.preventDefault(); key.stopPropagation();
-      scrollBox.scrollBy({ x: 0, y: Math.max(1, Math.floor(scrollBox.visibleHeight / 2)) });
-      renderer.requestRender();
+      // Refocus textarea on next tick so it can accept input again
+      setTimeout(() => { textarea.focus(); renderer.requestRender(); }, 10);
       return;
     }
   };
