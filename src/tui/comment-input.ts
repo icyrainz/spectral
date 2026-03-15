@@ -42,15 +42,13 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
   const { renderer, line, existingThread, onSubmit, onResolve, onCancel } = opts;
   const hasThread = existingThread && existingThread.messages.length > 0;
 
-  // --- New comment: simple input, no history ---
   if (!hasThread) {
     return createNewComment(renderer, line, onSubmit, onCancel);
   }
-
-  // --- Thread view: history on top, input on bottom ---
   return createThreadView(renderer, line, existingThread!, onSubmit, onResolve, onCancel);
 }
 
+// --- New comment: insert-only buffer, Tab submits and closes ---
 function createNewComment(
   renderer: CliRenderer,
   line: number,
@@ -124,6 +122,7 @@ function createNewComment(
   };
 }
 
+// --- Thread view: two modes (normal/insert), unified buffer ---
 function createThreadView(
   renderer: CliRenderer,
   line: number,
@@ -143,7 +142,7 @@ function createThreadView(
     border: true,
     borderStyle: "single",
     borderColor: theme.borderComment,
-    title: ` Thread #${thread.id} (line ${line}) [${thread.status.toUpperCase()}] `,
+    title: ` Thread #${thread.id} (line ${line}) `,
     flexDirection: "column",
     padding: 1,
   });
@@ -174,7 +173,7 @@ function createThreadView(
   scrollBox.add(messageText);
   container.add(scrollBox);
 
-  // --- Bottom: fixed input + hint ---
+  // --- Separator ---
   const sep = new TextRenderable(renderer, {
     content: "\u2500".repeat(40),
     width: "100%",
@@ -184,24 +183,29 @@ function createThreadView(
   });
   container.add(sep);
 
+  // --- Bottom: textarea (visible in both modes, focused only in insert) ---
   const textarea = new TextareaRenderable(renderer, {
     width: "100%",
     height: 4,
     flexGrow: 0,
     flexShrink: 0,
-    backgroundColor: theme.surface0,
-    textColor: theme.text,
+    backgroundColor: theme.surface1,
+    textColor: theme.overlay,
     focusedBackgroundColor: theme.surface0,
     focusedTextColor: theme.text,
     wrapMode: "word",
-    placeholder: "Type your reply...",
+    placeholder: "Press c to reply...",
     placeholderColor: theme.overlay,
     initialValue: "",
   });
   container.add(textarea);
 
+  // --- Hint bar (changes with mode) ---
+  const hintNormal = " NORMAL  j/k:scroll  Ctrl+D/U:halfpage  c:reply  r:resolve  Esc:close";
+  const hintInsert = " INSERT  [Tab] send  [Esc] normal mode";
+
   const hint = new TextRenderable(renderer, {
-    content: " [Tab] send  [Ctrl+R] resolve  [Ctrl+D/U] scroll  [Esc] close",
+    content: hintInsert,
     width: "100%",
     height: 1,
     fg: theme.hintFg,
@@ -211,7 +215,24 @@ function createThreadView(
   });
   container.add(hint);
 
-  // Focus input
+  // --- State ---
+  let mode: "normal" | "insert" = "insert";
+
+  function enterInsert(): void {
+    mode = "insert";
+    textarea.focus();
+    hint.content = hintInsert;
+    renderer.requestRender();
+  }
+
+  function enterNormal(): void {
+    mode = "normal";
+    textarea.blur();
+    hint.content = hintNormal;
+    renderer.requestRender();
+  }
+
+  // Start in insert mode
   setTimeout(() => { textarea.focus(); renderer.requestRender(); }, 0);
 
   function appendToConversation(msg: Message): void {
@@ -221,36 +242,85 @@ function createThreadView(
   }
 
   const keyHandler = (key: KeyEvent) => {
-    if (key.name === "escape") {
-      key.preventDefault(); key.stopPropagation(); onCancel(); return;
-    }
-    if (key.name === "tab") {
-      key.preventDefault(); key.stopPropagation();
-      const text = textarea.plainText.trim();
-      if (text.length === 0) return;
-      onSubmit(text);
-      appendToConversation({ author: "reviewer", text, ts: Date.now() });
-      // Clear textarea
-      textarea.selectAll();
-      textarea.deleteChar();
-      return;
-    }
-    if (key.ctrl && key.name === "r") {
-      key.preventDefault(); key.stopPropagation(); onResolve(); return;
-    }
-    // Ctrl+D / Ctrl+U scroll conversation history
-    if (key.ctrl && (key.name === "d" || key.name === "u")) {
-      key.preventDefault(); key.stopPropagation();
-      const amount = Math.max(1, Math.floor(scrollBox.visibleHeight / 2));
-      if (key.name === "d") {
-        scrollBox.scrollBy({ x: 0, y: amount });
-      } else {
-        scrollBox.scrollBy({ x: 0, y: -amount });
+    if (mode === "insert") {
+      // --- INSERT MODE ---
+      if (key.name === "escape") {
+        key.preventDefault(); key.stopPropagation();
+        enterNormal();
+        return;
       }
-      renderer.requestRender();
+      if (key.name === "tab") {
+        key.preventDefault(); key.stopPropagation();
+        const text = textarea.plainText.trim();
+        if (text.length === 0) return;
+        onSubmit(text);
+        appendToConversation({ author: "reviewer", text, ts: Date.now() });
+        textarea.selectAll();
+        textarea.deleteChar();
+        enterNormal();
+        return;
+      }
+      // All other keys: let textarea handle them (don't preventDefault)
       return;
+    }
+
+    // --- NORMAL MODE (textarea blurred, all keys are ours) ---
+    key.preventDefault(); key.stopPropagation();
+
+    switch (key.name) {
+      case "escape":
+      case "q":
+        onCancel();
+        return;
+
+      case "c":
+      case "i":
+        enterInsert();
+        return;
+
+      case "r":
+        onResolve();
+        return;
+
+      case "j":
+      case "down":
+        scrollBox.scrollBy({ x: 0, y: 1 });
+        renderer.requestRender();
+        return;
+
+      case "k":
+      case "up":
+        scrollBox.scrollBy({ x: 0, y: -1 });
+        renderer.requestRender();
+        return;
+
+      case "d":
+        if (key.ctrl) {
+          const amount = Math.max(1, Math.floor(scrollBox.visibleHeight / 2));
+          scrollBox.scrollBy({ x: 0, y: amount });
+          renderer.requestRender();
+        }
+        return;
+
+      case "u":
+        if (key.ctrl) {
+          const amount = Math.max(1, Math.floor(scrollBox.visibleHeight / 2));
+          scrollBox.scrollBy({ x: 0, y: -amount });
+          renderer.requestRender();
+        }
+        return;
+
+      case "g":
+        if (key.shift) {
+          // G = go to bottom
+          scrollBox.scrollTo(scrollBox.scrollHeight);
+          renderer.requestRender();
+        }
+        // TODO: gg = go to top (needs double-tap tracking)
+        return;
     }
   };
+
   renderer.keyInput.on("keypress", keyHandler);
 
   return {
