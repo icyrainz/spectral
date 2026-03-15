@@ -1,9 +1,14 @@
-import type { Thread } from "../protocol/types";
+import type { Thread, Message } from "../protocol/types";
 
 export class ReviewState {
   specLines: string[];
   threads: Thread[];
   cursorLine: number = 1;
+  private _unreadThreadIds: Set<string> = new Set();
+
+  get unreadThreadIds(): ReadonlySet<string> {
+    return this._unreadThreadIds;
+  }
 
   constructor(specLines: string[], threads: Thread[]) {
     this.specLines = specLines;
@@ -28,7 +33,7 @@ export class ReviewState {
       id: this.nextThreadId(),
       line,
       status: "open",
-      messages: [{ author: "human", text }],
+      messages: [{ author: "reviewer", text, ts: Date.now() }],
     };
     this.threads.push(thread);
   }
@@ -36,7 +41,7 @@ export class ReviewState {
   replyToThread(threadId: string, text: string): void {
     const thread = this.threads.find((t) => t.id === threadId);
     if (!thread) return;
-    thread.messages.push({ author: "human", text });
+    thread.messages.push({ author: "reviewer", text, ts: Date.now() });
     thread.status = "open";
   }
 
@@ -96,7 +101,8 @@ export class ReviewState {
   }
 
   canApprove(): boolean {
-    if (this.threads.length === 0) return false;
+    // No threads = clean approval (spec is good as-is)
+    if (this.threads.length === 0) return true;
     return this.threads.every(
       (t) => t.status === "resolved" || t.status === "outdated"
     );
@@ -118,7 +124,7 @@ export class ReviewState {
 
     // Find and remove the last human message
     for (let i = thread.messages.length - 1; i >= 0; i--) {
-      if (thread.messages[i].author === "human") {
+      if (thread.messages[i].author === "reviewer") {
         thread.messages.splice(i, 1);
         break;
       }
@@ -128,6 +134,42 @@ export class ReviewState {
     if (thread.messages.length === 0) {
       this.threads = this.threads.filter((t) => t.id !== threadId);
     }
+  }
+
+  addOwnerReply(threadId: string, text: string, ts?: number): void {
+    const thread = this.threads.find((t) => t.id === threadId);
+    if (!thread) return;
+    const msg: Message = { author: "owner", text };
+    if (ts !== undefined) msg.ts = ts;
+    thread.messages.push(msg);
+    thread.status = "pending";
+    this._unreadThreadIds.add(threadId);
+  }
+
+  unreadCount(): number {
+    return this._unreadThreadIds.size;
+  }
+
+  isThreadUnread(threadId: string): boolean {
+    return this._unreadThreadIds.has(threadId);
+  }
+
+  markRead(threadId: string): void {
+    this._unreadThreadIds.delete(threadId);
+  }
+
+  nextUnreadThread(): number | null {
+    const unreadThreads = this.threads.filter((t) => this._unreadThreadIds.has(t.id));
+    const after = unreadThreads.find((t) => t.line > this.cursorLine);
+    if (after) return after.line;
+    return unreadThreads.length > 0 ? unreadThreads[0].line : null;
+  }
+
+  prevUnreadThread(): number | null {
+    const unreadThreads = this.threads.filter((t) => this._unreadThreadIds.has(t.id));
+    const before = [...unreadThreads].reverse().find((t) => t.line < this.cursorLine);
+    if (before) return before.line;
+    return unreadThreads.length > 0 ? unreadThreads[unreadThreads.length - 1].line : null;
   }
 
   toDraft(): { threads: Thread[] } {

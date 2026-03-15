@@ -19,7 +19,7 @@ describe("writeReviewFile", () => {
           id: "t1",
           line: 3,
           status: "open",
-          messages: [{ author: "human", text: "Is this right?" }],
+          messages: [{ author: "reviewer", text: "Is this right?" }],
         },
       ],
     };
@@ -60,7 +60,7 @@ describe("writeDraftFile", () => {
           id: "t2",
           line: 7,
           status: "resolved",
-          messages: [{ author: "ai", text: "Fixed." }],
+          messages: [{ author: "owner", text: "Fixed." }],
         },
       ],
     };

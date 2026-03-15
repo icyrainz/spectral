@@ -12,7 +12,7 @@ function makeThread(id: string, messages: string[] = ["hello"]): Thread {
     id,
     line: 1,
     status: "open",
-    messages: messages.map((text) => ({ author: "human", text })),
+    messages: messages.map((text) => ({ author: "reviewer", text })),
   };
 }
 
@@ -34,8 +34,8 @@ describe("mergeDraftIntoReview", () => {
     const draftThread: Thread = {
       ...existingThread,
       messages: [
-        { author: "human", text: "first message" },
-        { author: "ai", text: "second message" },
+        { author: "reviewer", text: "first message" },
+        { author: "owner", text: "second message" },
       ],
     };
     const draft: DraftFile = { threads: [draftThread] };
@@ -53,8 +53,8 @@ describe("mergeDraftIntoReview", () => {
     const draftExisting: Thread = {
       ...existing,
       messages: [
-        { author: "human", text: "msg1" },
-        { author: "ai", text: "reply" },
+        { author: "reviewer", text: "msg1" },
+        { author: "owner", text: "reply" },
       ],
     };
     const draftNew: Thread = makeThread("t2", ["new thread"]);

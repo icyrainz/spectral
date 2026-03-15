@@ -22,7 +22,7 @@ describe("isValidThread", () => {
         id: "t1",
         line: 5,
         status: "open",
-        messages: [{ author: "human", text: "hello" }],
+        messages: [{ author: "reviewer", text: "hello" }],
       })
     ).toBe(true);
   });
@@ -69,7 +69,7 @@ describe("isValidReviewFile", () => {
             id: "t1",
             line: 1,
             status: "open",
-            messages: [{ author: "human", text: "comment" }],
+            messages: [{ author: "reviewer", text: "comment" }],
           },
         ],
       })

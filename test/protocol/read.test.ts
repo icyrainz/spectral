@@ -23,7 +23,7 @@ describe("readReviewFile", () => {
           id: "t1",
           line: 10,
           status: "open",
-          messages: [{ author: "human", text: "Looks good?" }],
+          messages: [{ author: "reviewer", text: "Looks good?" }],
         },
       ],
     };
@@ -73,7 +73,7 @@ describe("readDraftFile", () => {
           id: "t2",
           line: 5,
           status: "pending",
-          messages: [{ author: "ai", text: "Response here" }],
+          messages: [{ author: "owner", text: "Response here" }],
         },
       ],
     };

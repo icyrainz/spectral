@@ -8,7 +8,7 @@ import {
   parseColor,
   type CliRenderer,
 } from "@opentui/core";
-import { theme, STATUS_ICONS } from "./theme";
+import { theme } from "./theme";
 
 const MAX_HINT_LENGTH = 40;
 
@@ -30,7 +30,7 @@ function threadHint(thread: Thread): string {
  * Build plain text line-mode content (for commenting).
  * Each line: cursor marker + lineNum + content + thread indicator + hint.
  */
-export function buildPagerContent(state: ReviewState, searchQuery?: string | null): string {
+export function buildPagerContent(state: ReviewState, searchQuery?: string | null, unreadThreadIds?: ReadonlySet<string>): string {
   const lines: string[] = [];
 
   for (let i = 0; i < state.specLines.length; i++) {
@@ -46,13 +46,23 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
       specText = specText.replace(regex, (match) => `>>${match}<<`);
     }
 
-    let line = `${prefix}${padLineNum(lineNum)}  ${specText}`;
-
+    // Thread indicator — gutter bar on the left
+    let indicator = " ";
     if (thread) {
-      const icon = STATUS_ICONS[thread.status];
-      const hint = threadHint(thread);
-      line += `  ${icon} ${hint}`;
+      const isUnread = unreadThreadIds && unreadThreadIds.has(thread.id);
+      if (isUnread) {
+        indicator = "\u2588"; // █ full block — unread reply
+      } else if (thread.status === "resolved") {
+        indicator = "\u2713"; // ✓ resolved
+      } else {
+        indicator = "\u258c"; // ▌ half block — has thread
+      }
     }
+
+    let line = `${prefix}${indicator}${padLineNum(lineNum)}  ${specText}`;
+
+    // No inline preview — the gutter indicator (▌/█/✓) is enough.
+    // Press c to open the thread and see the full conversation.
 
     lines.push(line);
   }
@@ -123,7 +133,7 @@ export function createPager(renderer: CliRenderer): PagerComponents {
     flexGrow: 1,
     flexShrink: 1,
     scrollY: true,
-    scrollX: false,
+    scrollX: true,
     backgroundColor: theme.base,
   });
 

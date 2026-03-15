@@ -8,7 +8,7 @@ function makeThread(
   id: string,
   line: number,
   status: Thread["status"],
-  messages: Thread["messages"] = [{ author: "human", text: "comment" }]
+  messages: Thread["messages"] = [{ author: "reviewer", text: "comment" }]
 ): Thread {
   return { id, line, status, messages };
 }
@@ -39,10 +39,9 @@ describe("ReviewState", () => {
       expect(state.threads[0].line).toBe(3);
       expect(state.threads[0].status).toBe("open");
       expect(state.threads[0].messages).toHaveLength(1);
-      expect(state.threads[0].messages[0]).toEqual({
-        author: "human",
-        text: "needs clarification",
-      });
+      expect(state.threads[0].messages[0].author).toBe("reviewer");
+      expect(state.threads[0].messages[0].text).toBe("needs clarification");
+      expect(state.threads[0].messages[0].ts).toBeGreaterThan(0);
     });
 
     it("assigns auto-incremented id", () => {
@@ -57,10 +56,9 @@ describe("ReviewState", () => {
       const state = new ReviewState(SPEC, [makeThread("t1", 2, "pending")]);
       state.replyToThread("t1", "my reply");
       expect(state.threads[0].messages).toHaveLength(2);
-      expect(state.threads[0].messages[1]).toEqual({
-        author: "human",
-        text: "my reply",
-      });
+      expect(state.threads[0].messages[1].author).toBe("reviewer");
+      expect(state.threads[0].messages[1].text).toBe("my reply");
+      expect(state.threads[0].messages[1].ts).toBeGreaterThan(0);
     });
 
     it("flips status to open", () => {
@@ -235,9 +233,9 @@ describe("ReviewState", () => {
       expect(state.canApprove()).toBe(false);
     });
 
-    it("returns false when there are no threads", () => {
+    it("returns true when there are no threads (clean approval)", () => {
       const state = new ReviewState(SPEC, []);
-      expect(state.canApprove()).toBe(false);
+      expect(state.canApprove()).toBe(true);
     });
   });
 
@@ -265,14 +263,14 @@ describe("ReviewState", () => {
           line: 1,
           status: "open",
           messages: [
-            { author: "ai", text: "AI response" },
-            { author: "human", text: "my draft" },
+            { author: "owner", text: "AI response" },
+            { author: "reviewer", text: "my draft" },
           ],
         },
       ]);
       state.deleteLastDraftMessage("t1");
       expect(state.threads[0].messages).toHaveLength(1);
-      expect(state.threads[0].messages[0].author).toBe("ai");
+      expect(state.threads[0].messages[0].author).toBe("owner");
     });
 
     it("removes the thread entirely when it becomes empty", () => {
@@ -281,7 +279,7 @@ describe("ReviewState", () => {
           id: "t1",
           line: 1,
           status: "open",
-          messages: [{ author: "human", text: "only message" }],
+          messages: [{ author: "reviewer", text: "only message" }],
         },
       ]);
       state.deleteLastDraftMessage("t1");
@@ -321,6 +319,81 @@ describe("ReviewState", () => {
         makeThread("t2", 2, "outdated"),
       ]);
       expect(state.activeThreadCount()).toEqual({ open: 0, pending: 0 });
+    });
+  });
+
+  describe("unread tracking", () => {
+    it("tracks unread owner replies", () => {
+      const state = new ReviewState(["line1", "line2"], []);
+      state.addComment(1, "fix this");
+      state.addOwnerReply("t1", "done", 1001);
+      expect(state.unreadCount()).toBe(1);
+    });
+
+    it("markRead clears unread for a thread", () => {
+      const state = new ReviewState(["line1"], []);
+      state.addComment(1, "fix");
+      state.addOwnerReply("t1", "done", 1001);
+      state.markRead("t1");
+      expect(state.unreadCount()).toBe(0);
+    });
+
+    it("nextUnreadThread returns line of next unread thread after cursor", () => {
+      const state = new ReviewState(["a", "b", "c", "d", "e"], []);
+      state.addComment(2, "fix");
+      state.addComment(4, "fix too");
+      state.addOwnerReply("t1", "done", 1001);
+      state.addOwnerReply("t2", "done", 1002);
+      state.cursorLine = 1;
+      expect(state.nextUnreadThread()).toBe(2);
+    });
+
+    it("prevUnreadThread returns line of prev unread thread before cursor", () => {
+      const state = new ReviewState(["a", "b", "c", "d", "e"], []);
+      state.addComment(2, "fix");
+      state.addComment(4, "fix too");
+      state.addOwnerReply("t1", "done", 1001);
+      state.addOwnerReply("t2", "done", 1002);
+      state.cursorLine = 5;
+      expect(state.prevUnreadThread()).toBe(4);
+    });
+
+    it("nextUnreadThread returns null when no unread", () => {
+      const state = new ReviewState(["a"], []);
+      expect(state.nextUnreadThread()).toBeNull();
+    });
+
+    it("isThreadUnread returns correct state", () => {
+      const state = new ReviewState(["a"], []);
+      state.addComment(1, "fix");
+      expect(state.isThreadUnread("t1")).toBe(false);
+      state.addOwnerReply("t1", "done", 1001);
+      expect(state.isThreadUnread("t1")).toBe(true);
+      state.markRead("t1");
+      expect(state.isThreadUnread("t1")).toBe(false);
+    });
+
+    it("nextUnreadThread wraps around", () => {
+      const state = new ReviewState(["a", "b", "c", "d", "e"], []);
+      state.addComment(2, "fix");
+      state.addOwnerReply("t1", "done", 1001);
+      state.cursorLine = 4;
+      expect(state.nextUnreadThread()).toBe(2); // wraps to beginning
+    });
+
+    it("addOwnerReply sets thread status to pending", () => {
+      const state = new ReviewState(["a"], []);
+      state.addComment(1, "fix");
+      expect(state.threads[0].status).toBe("open");
+      state.addOwnerReply("t1", "done", 1001);
+      expect(state.threads[0].status).toBe("pending");
+    });
+
+    it("addOwnerReply preserves timestamp on message", () => {
+      const state = new ReviewState(["a"], []);
+      state.addComment(1, "fix");
+      state.addOwnerReply("t1", "done", 1234567890);
+      expect(state.threads[0].messages[1].ts).toBe(1234567890);
     });
   });
 });

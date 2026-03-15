@@ -1,8 +1,9 @@
 export type Status = "open" | "pending" | "resolved" | "outdated";
 
 export interface Message {
-  author: "human" | "ai";
+  author: "reviewer" | "owner";
   text: string;
+  ts?: number;
 }
 
 export interface Thread {

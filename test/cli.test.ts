@@ -2,6 +2,8 @@ import { describe, it, expect, afterEach } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "fs";
 import { join, resolve } from "path";
 import { tmpdir } from "os";
+import { appendEvent } from "../src/protocol/live-events";
+import { writeReviewFile } from "../src/protocol/write";
 
 const CLI = resolve(import.meta.dir, "../bin/revspec.ts");
 
@@ -63,79 +65,46 @@ describe("CLI entry point", () => {
     expect(result.stderr.trim()).toBe("");
   });
 
-  it("outputs APPROVED when draft has approved flag", async () => {
+  it("outputs APPROVED when JSONL has approve event and review file exists", async () => {
     const dir = setup();
     const specFile = join(dir, "spec.md");
     writeFileSync(specFile, "# My Spec\n");
 
-    const draftPath = join(dir, "spec.review.draft.json");
-    writeFileSync(draftPath, JSON.stringify({ approved: true }));
+    // Write a review file (TUI writes this on approve)
+    const reviewPath = join(dir, "spec.review.json");
+    writeReviewFile(reviewPath, { file: specFile, threads: [] });
+
+    // Simulate TUI writing an approve event to JSONL
+    const jsonlPath = join(dir, "spec.review.live.jsonl");
+    appendEvent(jsonlPath, { type: "approve", author: "reviewer", ts: Date.now() });
 
     const result = await runCli([specFile]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("APPROVED:");
     expect(result.stdout).toContain("spec.review.json");
-
-    // Draft should be deleted
-    const approvedDraftExists = await Bun.file(draftPath)
-      .exists()
-      .catch(() => false);
-    expect(approvedDraftExists).toBe(false);
   });
 
-  it("merges draft into review file", async () => {
+  it("outputs review path when review file has open threads", async () => {
     const dir = setup();
     const specFile = join(dir, "spec.md");
     writeFileSync(specFile, "# My Spec\n");
 
-    const draft = {
+    const reviewPath = join(dir, "spec.review.json");
+    writeReviewFile(reviewPath, {
+      file: specFile,
       threads: [
         {
           id: "t1",
           line: 5,
           status: "open",
-          messages: [{ author: "human", text: "This needs clarification" }],
+          messages: [{ author: "reviewer", text: "This needs clarification" }],
         },
       ],
-    };
-    const draftPath = join(dir, "spec.review.draft.json");
-    writeFileSync(draftPath, JSON.stringify(draft));
+    });
 
     const result = await runCli([specFile]);
     expect(result.exitCode).toBe(0);
-
-    const reviewPath = join(dir, "spec.review.json");
-    const reviewFile = await Bun.file(reviewPath).json();
-    expect(reviewFile.threads).toHaveLength(1);
-    expect(reviewFile.threads[0].id).toBe("t1");
-
-    // Draft should be deleted
-    const draftExists = await Bun.file(draftPath)
-      .exists()
-      .catch(() => false);
-    expect(draftExists).toBe(false);
-
-    // Should output review path (has open thread)
     expect(result.stdout).toContain("spec.review.json");
-  });
-
-  it("warns and deletes corrupted draft file", async () => {
-    const dir = setup();
-    const specFile = join(dir, "spec.md");
-    writeFileSync(specFile, "# My Spec\n");
-
-    const draftPath = join(dir, "spec.review.draft.json");
-    writeFileSync(draftPath, "this is not valid JSON {{{{");
-
-    const result = await runCli([specFile]);
-    expect(result.exitCode).toBe(0);
-    expect(result.stderr).toContain("corrupted");
-
-    // Draft should be deleted
-    const draftExists = await Bun.file(draftPath)
-      .exists()
-      .catch(() => false);
-    expect(draftExists).toBe(false);
   });
 
   it("prints nothing when human adds no comments (no prior review)", async () => {
@@ -143,9 +112,49 @@ describe("CLI entry point", () => {
     const specFile = join(dir, "spec.md");
     writeFileSync(specFile, "# My Spec\n");
 
-    // No draft, no review file — TUI is skipped, nothing happened
+    // No JSONL, no review file — TUI is skipped, nothing happened
     const result = await runCli([specFile]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout.trim()).toBe("");
+  });
+
+  it("prints nothing when review exists but all threads resolved", async () => {
+    const dir = setup();
+    const specFile = join(dir, "spec.md");
+    writeFileSync(specFile, "# My Spec\n");
+
+    const reviewPath = join(dir, "spec.review.json");
+    writeReviewFile(reviewPath, {
+      file: specFile,
+      threads: [
+        {
+          id: "t1",
+          line: 5,
+          status: "resolved",
+          messages: [
+            { author: "reviewer", text: "Was unclear" },
+            { author: "owner", text: "Fixed" },
+          ],
+        },
+      ],
+    });
+
+    const result = await runCli([specFile]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.trim()).toBe("");
+  });
+
+  it("does not output APPROVED if JSONL has approve but no review file", async () => {
+    const dir = setup();
+    const specFile = join(dir, "spec.md");
+    writeFileSync(specFile, "# My Spec\n");
+
+    // JSONL has approve but no review file written
+    const jsonlPath = join(dir, "spec.review.live.jsonl");
+    appendEvent(jsonlPath, { type: "approve", author: "reviewer", ts: Date.now() });
+
+    const result = await runCli([specFile]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain("APPROVED:");
   });
 });
