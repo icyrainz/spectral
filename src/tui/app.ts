@@ -228,7 +228,7 @@ export async function runTui(
       setTimeout(() => { refreshPager(); }, 1200);
       return "stay";
     }
-    if (cmd === "wq") {
+    if (cmd === "wq" || cmd === "qw") {
       // Merge and exit
       mergeAndExit(resolve);
       return "merged";
