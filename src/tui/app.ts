@@ -381,7 +381,7 @@ export async function runTui(
     { key: "n", action: "search-next" },
     { key: "N", action: "search-prev" },
     { key: "c", action: "comment" },
-    { key: "T", action: "thread-list" },
+    { key: "t", action: "thread-list" },
     { key: "r", action: "resolve" },
     { key: "R", action: "resolve-all" },
     { key: "dd", action: "delete-draft" },

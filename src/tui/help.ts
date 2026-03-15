@@ -99,7 +99,7 @@ export function createHelp(opts: {
     "  r         Resolve thread (toggle)",
     "  R         Resolve all pending",
     "  dd        Delete thread",
-    "  T         List threads",
+    "  t         List threads",
     "  S         Submit for rewrite",
     "  A         Approve spec",
   ]);

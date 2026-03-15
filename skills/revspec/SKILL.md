@@ -58,7 +58,7 @@ This blocks until the reviewer adds comments. When it returns, you'll see output
 ```
 --- New threads ---
 
-[t1] line 14 (new):
+[x1a3f] line 14 (new):
   Context:
     12: The system uses polling...
    >14: it sends a notification via webhook.
@@ -72,7 +72,7 @@ When done replying, run: revspec watch spec.md
 **For each comment:** Read the context, understand the concern, and reply thoughtfully:
 
 ```bash
-revspec reply <spec-file> t1 "Good point. I'll clarify — it uses polling to detect changes, then sends a webhook notification to downstream services."
+revspec reply <spec-file> x1a3f "Good point. I'll clarify — it uses polling to detect changes, then sends a webhook notification to downstream services."
 ```
 
 After replying to all comments, run `revspec watch` again to wait for the next batch.

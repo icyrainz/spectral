@@ -53,7 +53,7 @@ Opens a TUI with vim-style navigation. Press `c` on any line to open a thread an
 | `r` | Resolve thread (toggle) |
 | `R` | Resolve all pending |
 | `dd` | Delete thread (with confirm) |
-| `T` | List threads |
+| `t` | List threads |
 | `S` | Submit for rewrite (AI updates spec, TUI reloads) |
 | `A` | Approve spec (finalize and exit) |
 
