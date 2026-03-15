@@ -26,6 +26,7 @@ import { createSearch } from "./search";
 import { createThreadList } from "./thread-list";
 import { createConfirm } from "./confirm";
 import { createHelp } from "./help";
+import { createSpinner } from "./spinner";
 import { createKeybindRegistry, type KeyBinding } from "./ui/keybinds";
 
 export async function runTui(
@@ -306,6 +307,39 @@ export async function runTui(
     showOverlay(overlay);
   }
 
+  // Helper: gate that checks for unresolved threads.
+  // If unresolved, shows confirm popup to resolve all.
+  // Calls onProceed() when all threads are resolved.
+  function unresolvedGate(onProceed: () => void): void {
+    if (state.canApprove()) {
+      onProceed();
+      return;
+    }
+    const { open, pending } = state.activeThreadCount();
+    const total = open + pending;
+    const confirmOverlay = createConfirm({
+      renderer,
+      title: "Unresolved Threads",
+      message: `${total} thread(s) still unresolved. Resolve all and continue?`,
+      onConfirm: () => {
+        dismissOverlay();
+        const unresolved = state.threads.filter(
+          t => t.status !== "resolved" && t.status !== "outdated"
+        );
+        state.resolveAll();
+        for (const t of unresolved) {
+          appendEvent(jsonlPath, { type: "resolve", threadId: t.id, author: "reviewer", ts: Date.now() });
+        }
+        refreshPager();
+        onProceed();
+      },
+      onCancel: () => {
+        dismissOverlay();
+      },
+    });
+    showOverlay(confirmOverlay);
+  }
+
   // Helper: find next search match from current line in given direction, wrapping
   function findNextMatch(
     lines: string[],
@@ -345,7 +379,8 @@ export async function runTui(
     { key: "r", action: "resolve" },
     { key: "R", action: "resolve-all" },
     { key: "dd", action: "delete-draft" },
-    { key: "a", action: "approve" },
+    { key: "S", action: "submit" },
+    { key: "A", action: "approve" },
     { key: "]t", action: "next-thread" },
     { key: "[t", action: "prev-thread" },
     { key: "]r", action: "next-unread" },
@@ -573,9 +608,49 @@ export async function runTui(
           showOverlay(deleteOverlay);
           break;
         }
+        case "submit":
+          unresolvedGate(() => {
+            appendEvent(jsonlPath, { type: "submit", author: "reviewer", ts: Date.now() });
+
+            const spinnerOverlay = createSpinner({
+              renderer,
+              message: "Waiting for agent to update spec...",
+              onCancel: () => {
+                clearInterval(specPollInterval);
+                dismissOverlay();
+              },
+              onTimeout: () => {
+                clearInterval(specPollInterval);
+                dismissOverlay();
+                setBottomBarMessage(bottomBar, " \u26a0 Agent did not update spec. Press S to retry.");
+                renderer.requestRender();
+                setTimeout(() => { refreshPager(); }, 3000);
+              },
+            });
+            showOverlay(spinnerOverlay);
+
+            const specPollInterval = setInterval(() => {
+              try {
+                const currentMtime = statSync(specFile).mtimeMs;
+                if (currentMtime !== specMtime) {
+                  clearInterval(specPollInterval);
+                  const newContent = readFileSync(specFile, "utf8");
+                  state.reset(newContent.split("\n"));
+                  specMtime = currentMtime;
+                  specMtimeChanged = false;
+                  liveWatcher.stop();
+                  liveWatcher.start();
+                  dismissOverlay();
+                  searchQuery = null;
+                  ensureCursorVisible();
+                  refreshPager();
+                }
+              } catch {}
+            }, 500);
+          });
+          break;
         case "approve":
-          // Will be replaced by unresolvedGate in Task 6
-          if (state.canApprove()) {
+          unresolvedGate(() => {
             const confirmOverlay = createConfirm({
               renderer,
               message: "Approve spec and proceed to implementation?",
@@ -588,16 +663,7 @@ export async function runTui(
               },
             });
             showOverlay(confirmOverlay);
-          } else {
-            const { open, pending } = state.activeThreadCount();
-            const total = open + pending;
-            const msg = total === 0
-              ? "No threads to approve"
-              : `${total} thread${total !== 1 ? "s" : ""} still open/pending`;
-            setBottomBarMessage(bottomBar, ` \u26a0  ${msg}`);
-            renderer.requestRender();
-            setTimeout(() => { refreshPager(); }, 2000);
-          }
+          });
           break;
         case "next-thread": {
           const next = state.nextActiveThread();
