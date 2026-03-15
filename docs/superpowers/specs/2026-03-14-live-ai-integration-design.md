@@ -170,26 +170,27 @@ The merge produces the same structured `ReviewFile` format used today:
       "line": 14,
       "status": "resolved",
       "messages": [
-        { "author": "reviewer", "text": "this section is unclear" },
-        { "author": "owner", "text": "I can restructure around X..." },
-        { "author": "reviewer", "text": "actually what about Y?" },
-        { "author": "owner", "text": "Y works, here's how..." }
+        { "author": "reviewer", "text": "this section is unclear", "ts": 1710400000 },
+        { "author": "owner", "text": "I can restructure around X...", "ts": 1710400005 },
+        { "author": "reviewer", "text": "actually what about Y?", "ts": 1710400020 },
+        { "author": "owner", "text": "Y works, here's how...", "ts": 1710400025 }
       ]
     }
   ]
 }
 ```
 
-The `Message` type in the review JSON is unchanged:
+The `Message` type in the review JSON gains an optional `ts` field:
 
 ```typescript
 interface Message {
   author: "reviewer" | "owner"
   text: string
+  ts?: number  // Date.now(), carried over from JSONL during merge. Optional for backward compat with pre-live review files.
 }
 ```
 
-Timestamps (`ts`) exist only in JSONL events, not in the merged review JSON. The JSONL is the audit log with timing; the JSON is the clean structured state.
+Timestamps are preserved from the JSONL into the merged JSON, giving the review file a built-in history timeline without needing to consult the JSONL audit log.
 
 ### Draft File Replacement
 
@@ -504,7 +505,7 @@ If revspec is launched without an AI watcher (`revspec spec.md` with no `revspec
 
 ### Existing Review Files
 
-The `Message` type changes `author` values from `"human" | "ai"` to `"reviewer" | "owner"`. Existing `spec.review.json` files using the old values will need a one-time migration (find-and-replace in the JSON). The `Message` type does not include `ts` — timestamps exist only in JSONL events.
+The `Message` type changes `author` values from `"human" | "ai"` to `"reviewer" | "owner"`. Existing `spec.review.json` files using the old values will need a one-time migration (find-and-replace in the JSON). The `ts` field is optional — existing messages without timestamps continue to work; new messages from live sessions include them.
 
 ## Open Questions
 
