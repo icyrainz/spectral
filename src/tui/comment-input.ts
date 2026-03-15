@@ -25,18 +25,6 @@ export interface CommentInputOverlay {
   threadId: string | null;
 }
 
-function formatMessage(msg: Message): string {
-  const authorLabel = msg.author === "reviewer" ? "You" : " AI";
-  const tsStr = msg.ts ? new Date(msg.ts).toISOString().replace("T", " ").slice(0, 19) : "";
-  const tsDisplay = tsStr ? ` [${tsStr}]` : "";
-  const lines: string[] = [];
-  lines.push(`${authorLabel}${tsDisplay}:`);
-  for (const textLine of msg.text.split("\n")) {
-    lines.push(`  ${textLine}`);
-  }
-  lines.push("");
-  return lines.join("\n");
-}
 
 export function createCommentInput(opts: CommentInputOptions): CommentInputOverlay {
   const { renderer, line, existingThread, onSubmit, onResolve, onCancel } = opts;
@@ -156,19 +144,46 @@ function createThreadView(
     scrollX: false,
   });
 
-  let conversationContent = "";
-  for (const msg of thread.messages) {
-    conversationContent += formatMessage(msg);
+  function renderMessage(msg: Message): BoxRenderable {
+    const isReviewer = msg.author === "reviewer";
+    const borderColor = isReviewer ? theme.blue : theme.green;
+    const label = isReviewer ? "You" : "AI";
+    const tsStr = msg.ts ? new Date(msg.ts).toISOString().replace("T", " ").slice(0, 19) : "";
+
+    const msgBox = new BoxRenderable(renderer, {
+      width: "100%",
+      border: ["left"],
+      borderColor,
+      paddingLeft: 1,
+      marginBottom: 1,
+      flexDirection: "column",
+    });
+
+    // Header: author + timestamp
+    const header = new TextRenderable(renderer, {
+      content: tsStr ? `${label}  ${tsStr}` : label,
+      width: "100%",
+      height: 1,
+      fg: theme.subtext,
+      wrapMode: "none",
+    });
+    msgBox.add(header);
+
+    // Body: message text
+    const body = new TextRenderable(renderer, {
+      content: msg.text,
+      width: "100%",
+      fg: theme.text,
+      wrapMode: "word",
+    });
+    msgBox.add(body);
+
+    return msgBox;
   }
 
-  const messageText = new TextRenderable(renderer, {
-    content: conversationContent,
-    width: "100%",
-    fg: theme.text,
-    wrapMode: "word",
-  });
-
-  scrollBox.add(messageText);
+  for (const msg of thread.messages) {
+    scrollBox.add(renderMessage(msg));
+  }
   container.add(scrollBox);
 
   // --- Separator ---
@@ -242,9 +257,7 @@ function createThreadView(
   }, 0);
 
   function appendToConversation(msg: Message): void {
-    conversationContent += formatMessage(msg);
-    messageText.content = conversationContent;
-    // Scroll to bottom — need two render cycles for scrollHeight to update
+    scrollBox.add(renderMessage(msg));
     renderer.requestRender();
     setTimeout(() => {
       scrollBox.scrollTo(scrollBox.scrollHeight);
