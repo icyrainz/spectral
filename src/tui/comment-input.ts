@@ -239,20 +239,15 @@ function createThreadView(
       key.preventDefault(); key.stopPropagation(); onResolve(); return;
     }
     // Ctrl+D / Ctrl+U scroll conversation history
-    // These conflict with textarea (Ctrl+U = delete-to-line-start), so we
-    // blur textarea, scroll, then refocus on next tick
     if (key.ctrl && (key.name === "d" || key.name === "u")) {
       key.preventDefault(); key.stopPropagation();
       const amount = Math.max(1, Math.floor(scrollBox.visibleHeight / 2));
-      textarea.blur();
       if (key.name === "d") {
         scrollBox.scrollBy({ x: 0, y: amount });
       } else {
         scrollBox.scrollBy({ x: 0, y: -amount });
       }
       renderer.requestRender();
-      // Refocus textarea on next tick so it can accept input again
-      setTimeout(() => { textarea.focus(); renderer.requestRender(); }, 10);
       return;
     }
   };
