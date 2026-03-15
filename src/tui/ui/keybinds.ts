@@ -22,8 +22,16 @@ export function createKeybindRegistry(bindings: KeyBinding[], timeout = 500): Ke
   const singleBindings = new Map<string, string>();
   const sequenceBindings = new Map<string, string>();
 
+  // Sequence keys: exactly 2 chars, each is a single printable keystroke.
+  // Named keys like "up", "down" are NOT sequences even though length === 2.
+  // Sequences: "gg", "dd", "]t", "[r" — char + char combos.
+  // We detect named keys by checking: if both chars are lowercase letters AND
+  // the combo is different from char+char (i.e., it's a word), it's a named key.
+  // Simple heuristic: sequences always have either repeated chars or non-alpha first char.
+  const NAMED_KEYS = new Set(["up", "fn"]);
+
   for (const b of bindings) {
-    if (b.key.length === 2 && !b.key.startsWith("C-")) {
+    if (b.key.length === 2 && !b.key.startsWith("C-") && !NAMED_KEYS.has(b.key)) {
       sequenceBindings.set(b.key, b.action);
     } else {
       singleBindings.set(b.key, b.action);
@@ -37,6 +45,8 @@ export function createKeybindRegistry(bindings: KeyBinding[], timeout = 500): Ke
 
   function keyToString(key: KeyEvent): string {
     if (key.ctrl && key.name) return `C-${key.name}`;
+    // For shifted keys, prefer sequence (gives "?", ":", etc.) over name.toUpperCase()
+    if (key.shift && key.sequence) return key.sequence;
     if (key.shift && key.name) return key.name.toUpperCase();
     return key.sequence || key.name || "";
   }

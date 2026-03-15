@@ -167,7 +167,7 @@ function createThreadView(
     width: "80%",
     height: "85%",
     borderColor: theme.blue,
-    onDismiss: () => {},
+    onDismiss: onCancel,
     hints: insertHints,
   });
 

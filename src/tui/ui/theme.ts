@@ -41,4 +41,9 @@ export const SPLIT_BORDER = {
   bottomRight: " ",
   horizontal: " ",
   vertical: "\u2503",
+  topT: " ",
+  bottomT: " ",
+  leftT: "\u2503",
+  rightT: " ",
+  cross: " ",
 } as const;

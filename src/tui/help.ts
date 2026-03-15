@@ -87,14 +87,14 @@ export function createHelp(opts: {
     if (key.name === "j" || key.name === "down") {
       key.preventDefault();
       key.stopPropagation();
-      dialog.content.scrollBy(1);
+      dialog.content.scrollTo(Math.min(dialog.content.scrollTop + 1, dialog.content.scrollHeight));
       renderer.requestRender();
       return;
     }
     if (key.name === "k" || key.name === "up") {
       key.preventDefault();
       key.stopPropagation();
-      dialog.content.scrollBy(-1);
+      dialog.content.scrollTo(Math.max(dialog.content.scrollTop - 1, 0));
       renderer.requestRender();
       return;
     }
