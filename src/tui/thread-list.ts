@@ -115,7 +115,7 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
       }
     });
 
-    // Manual Enter handler as fallback
+    // Manual key handler — SelectRenderable focus is unreliable
     keyHandler = (key: KeyEvent) => {
       if (key.name === "return") {
         key.preventDefault();
@@ -124,6 +124,21 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
         if (selected && selected.value != null) {
           onSelect(selected.value as number);
         }
+        return;
+      }
+      if (key.name === "j" || key.name === "down") {
+        key.preventDefault();
+        key.stopPropagation();
+        select.selectNext();
+        renderer.requestRender();
+        return;
+      }
+      if (key.name === "k" || key.name === "up") {
+        key.preventDefault();
+        key.stopPropagation();
+        select.selectPrevious();
+        renderer.requestRender();
+        return;
       }
     };
     renderer.keyInput.on("keypress", keyHandler);
