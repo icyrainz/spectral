@@ -1,10 +1,9 @@
 #!/usr/bin/env bun
-import { existsSync, unlinkSync, readFileSync } from "fs";
+import { existsSync } from "fs";
 import { resolve, basename, extname, dirname, join } from "path";
-import { readReviewFile, readDraftFile } from "../src/protocol/read";
-import { writeReviewFile } from "../src/protocol/write";
-import { mergeDraftIntoReview } from "../src/protocol/merge";
+import { readReviewFile } from "../src/protocol/read";
 import { runTui } from "../src/tui/app";
+import { readEventsFromOffset } from "../src/protocol/live-events";
 
 const args = process.argv.slice(2);
 const subcommand = args[0];
@@ -56,70 +55,30 @@ if (!existsSync(specPath)) {
   process.exit(1);
 }
 
-// 2. Derive review/draft paths from spec filename
-//    e.g. spec.md -> spec.review.json, spec.review.draft.json
+// 2. Derive review/jsonl paths from spec filename
+//    e.g. spec.md -> spec.review.json, spec.review.live.jsonl
 const specDir = dirname(specPath);
 const specBase = basename(specPath, extname(specPath)); // e.g. "spec"
 const reviewPath = join(specDir, `${specBase}.review.json`);
+const jsonlPath = join(specDir, `${specBase}.review.live.jsonl`);
 const draftPath = join(specDir, `${specBase}.review.draft.json`);
 
-// 3. Check for corrupted draft — if exists but invalid JSON, warn and delete
-if (existsSync(draftPath)) {
-  let raw: string;
-  try {
-    raw = readFileSync(draftPath, "utf8");
-  } catch {
-    raw = "";
-  }
-  let parsedDraft: unknown = null;
-  let parseError = false;
-  try {
-    parsedDraft = JSON.parse(raw);
-    if (typeof parsedDraft !== "object" || parsedDraft === null) {
-      parseError = true;
-    }
-  } catch {
-    parseError = true;
-  }
-  if (parseError) {
-    process.stderr.write(
-      `Warning: Draft file is corrupted (invalid JSON), deleting: ${draftPath}\n`
-    );
-    unlinkSync(draftPath);
-  }
-}
-
-// 4. Launch TUI (skip if REVSPEC_SKIP_TUI=1)
+// 3. Launch TUI (skip if REVSPEC_SKIP_TUI=1)
 if (process.env.REVSPEC_SKIP_TUI !== "1") {
   await runTui(specPath, reviewPath, draftPath);
 }
 
-// 5. After TUI exits, read draft
-if (existsSync(draftPath)) {
-  const draft = readDraftFile(draftPath);
-
-  if (draft && draft.approved === true) {
-    // Approved — delete draft, print APPROVED, exit 0
-    unlinkSync(draftPath);
-    process.stdout.write(`APPROVED: ${reviewPath}\n`);
-    process.exit(0);
-  }
-
-  if (draft && draft.threads && draft.threads.length > 0) {
-    // Has threads — merge into review file, delete draft
-    const existingReview = readReviewFile(reviewPath);
-    const merged = mergeDraftIntoReview(existingReview, draft, specPath);
-    writeReviewFile(reviewPath, merged);
-    unlinkSync(draftPath);
-
-    // Output review path — draft had threads, so new comments were added
-    process.stdout.write(`${reviewPath}\n`);
+// 4. After TUI exits, check if approved via JSONL
+if (existsSync(jsonlPath)) {
+  const { events } = readEventsFromOffset(jsonlPath, 0);
+  const wasApproved = events.some(e => e.type === "approve");
+  if (wasApproved && existsSync(reviewPath)) {
+    console.log(`APPROVED: ${reviewPath}`);
     process.exit(0);
   }
 }
 
-// 6. No draft (or draft had no threads and wasn't approved)
-//    Check if existing review file has open/pending threads
+// 5. Check if review file exists with open/pending threads
 const existingReview = readReviewFile(reviewPath);
 if (existingReview) {
   const hasOpenOrPending = existingReview.threads.some(
