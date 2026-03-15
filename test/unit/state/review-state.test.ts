@@ -44,10 +44,12 @@ describe("ReviewState", () => {
       expect(state.threads[0].messages[0].ts).toBeGreaterThan(0);
     });
 
-    it("assigns auto-incremented id", () => {
-      const state = new ReviewState(SPEC, [makeThread("t3", 1, "open")]);
-      state.addComment(2, "another comment");
-      expect(state.threads[1].id).toBe("t4");
+    it("assigns unique random id", () => {
+      const state = new ReviewState(SPEC, []);
+      state.addComment(1, "first");
+      state.addComment(2, "second");
+      expect(state.threads[0].id).not.toBe(state.threads[1].id);
+      expect(state.threads[0].id.length).toBeGreaterThan(4);
     });
   });
 
@@ -240,18 +242,61 @@ describe("ReviewState", () => {
   });
 
   describe("nextThreadId", () => {
-    it("returns t1 when no threads exist", () => {
+    it("returns a random string", () => {
       const state = new ReviewState(SPEC, []);
-      expect(state.nextThreadId()).toBe("t1");
+      const id = state.nextThreadId();
+      expect(id.length).toBe(8);
+      expect(/^[0-9a-z]+$/.test(id)).toBe(true);
     });
 
-    it("increments from the highest existing id", () => {
+    it("returns unique IDs on consecutive calls", () => {
+      const state = new ReviewState(SPEC, []);
+      const ids = new Set(Array.from({ length: 10 }, () => state.nextThreadId()));
+      expect(ids.size).toBe(10);
+    });
+  });
+
+  describe("resolveAll", () => {
+    it("resolves all open and pending threads", () => {
       const state = new ReviewState(SPEC, [
-        makeThread("t3", 1, "open"),
-        makeThread("t1", 2, "open"),
-        makeThread("t7", 3, "open"),
+        makeThread("x1", 1, "open"),
+        makeThread("x2", 2, "pending"),
+        makeThread("x3", 3, "resolved"),
       ]);
-      expect(state.nextThreadId()).toBe("t8");
+      state.resolveAll();
+      expect(state.threads[0].status).toBe("resolved");
+      expect(state.threads[1].status).toBe("resolved");
+      expect(state.threads[2].status).toBe("resolved");
+    });
+
+    it("does not change outdated threads", () => {
+      const state = new ReviewState(SPEC, [makeThread("x1", 1, "outdated")]);
+      state.resolveAll();
+      expect(state.threads[0].status).toBe("outdated");
+    });
+  });
+
+  describe("reset", () => {
+    it("clears threads and reloads spec lines", () => {
+      const state = new ReviewState(["a", "b"], [
+        makeThread("x1", 1, "open"),
+      ]);
+      state.cursorLine = 2;
+      state.reset(["c", "d", "e"]);
+      expect(state.threads).toEqual([]);
+      expect(state.specLines).toEqual(["c", "d", "e"]);
+      expect(state.cursorLine).toBe(1);
+      expect(state.lineCount).toBe(3);
+    });
+
+    it("clears unread tracking", () => {
+      const state = new ReviewState(["a"], []);
+      state.addComment(1, "fix");
+      const id = state.threads[0].id;
+      state.addOwnerReply(id, "done", 1001);
+      expect(state.unreadCount()).toBe(1);
+      state.reset(["b"]);
+      expect(state.unreadCount()).toBe(0);
     });
   });
 
@@ -326,15 +371,17 @@ describe("ReviewState", () => {
     it("tracks unread owner replies", () => {
       const state = new ReviewState(["line1", "line2"], []);
       state.addComment(1, "fix this");
-      state.addOwnerReply("t1", "done", 1001);
+      const id = state.threads[0].id;
+      state.addOwnerReply(id, "done", 1001);
       expect(state.unreadCount()).toBe(1);
     });
 
     it("markRead clears unread for a thread", () => {
       const state = new ReviewState(["line1"], []);
       state.addComment(1, "fix");
-      state.addOwnerReply("t1", "done", 1001);
-      state.markRead("t1");
+      const id = state.threads[0].id;
+      state.addOwnerReply(id, "done", 1001);
+      state.markRead(id);
       expect(state.unreadCount()).toBe(0);
     });
 
@@ -342,8 +389,10 @@ describe("ReviewState", () => {
       const state = new ReviewState(["a", "b", "c", "d", "e"], []);
       state.addComment(2, "fix");
       state.addComment(4, "fix too");
-      state.addOwnerReply("t1", "done", 1001);
-      state.addOwnerReply("t2", "done", 1002);
+      const id1 = state.threads[0].id;
+      const id2 = state.threads[1].id;
+      state.addOwnerReply(id1, "done", 1001);
+      state.addOwnerReply(id2, "done", 1002);
       state.cursorLine = 1;
       expect(state.nextUnreadThread()).toBe(2);
     });
@@ -352,8 +401,10 @@ describe("ReviewState", () => {
       const state = new ReviewState(["a", "b", "c", "d", "e"], []);
       state.addComment(2, "fix");
       state.addComment(4, "fix too");
-      state.addOwnerReply("t1", "done", 1001);
-      state.addOwnerReply("t2", "done", 1002);
+      const id1 = state.threads[0].id;
+      const id2 = state.threads[1].id;
+      state.addOwnerReply(id1, "done", 1001);
+      state.addOwnerReply(id2, "done", 1002);
       state.cursorLine = 5;
       expect(state.prevUnreadThread()).toBe(4);
     });
@@ -366,33 +417,37 @@ describe("ReviewState", () => {
     it("isThreadUnread returns correct state", () => {
       const state = new ReviewState(["a"], []);
       state.addComment(1, "fix");
-      expect(state.isThreadUnread("t1")).toBe(false);
-      state.addOwnerReply("t1", "done", 1001);
-      expect(state.isThreadUnread("t1")).toBe(true);
-      state.markRead("t1");
-      expect(state.isThreadUnread("t1")).toBe(false);
+      const id = state.threads[0].id;
+      expect(state.isThreadUnread(id)).toBe(false);
+      state.addOwnerReply(id, "done", 1001);
+      expect(state.isThreadUnread(id)).toBe(true);
+      state.markRead(id);
+      expect(state.isThreadUnread(id)).toBe(false);
     });
 
     it("nextUnreadThread wraps around", () => {
       const state = new ReviewState(["a", "b", "c", "d", "e"], []);
       state.addComment(2, "fix");
-      state.addOwnerReply("t1", "done", 1001);
+      const id = state.threads[0].id;
+      state.addOwnerReply(id, "done", 1001);
       state.cursorLine = 4;
-      expect(state.nextUnreadThread()).toBe(2); // wraps to beginning
+      expect(state.nextUnreadThread()).toBe(2);
     });
 
     it("addOwnerReply sets thread status to pending", () => {
       const state = new ReviewState(["a"], []);
       state.addComment(1, "fix");
+      const id = state.threads[0].id;
       expect(state.threads[0].status).toBe("open");
-      state.addOwnerReply("t1", "done", 1001);
+      state.addOwnerReply(id, "done", 1001);
       expect(state.threads[0].status).toBe("pending");
     });
 
     it("addOwnerReply preserves timestamp on message", () => {
       const state = new ReviewState(["a"], []);
       state.addComment(1, "fix");
-      state.addOwnerReply("t1", "done", 1234567890);
+      const id = state.threads[0].id;
+      state.addOwnerReply(id, "done", 1234567890);
       expect(state.threads[0].messages[1].ts).toBe(1234567890);
     });
   });

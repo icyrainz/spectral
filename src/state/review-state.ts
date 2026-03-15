@@ -1,4 +1,15 @@
+import { randomBytes } from "crypto";
 import type { Thread, Message } from "../protocol/types";
+
+function nanoid(size = 8): string {
+  const alphabet = "0123456789abcdefghijklmnopqrstuvwxyz";
+  const bytes = randomBytes(size);
+  let id = "";
+  for (let i = 0; i < size; i++) {
+    id += alphabet[bytes[i] % alphabet.length];
+  }
+  return id;
+}
 
 export class ReviewState {
   specLines: string[];
@@ -20,12 +31,7 @@ export class ReviewState {
   }
 
   nextThreadId(): string {
-    if (this.threads.length === 0) return "t1";
-    const highest = this.threads.reduce((max, t) => {
-      const n = parseInt(t.id.replace(/^t/, ""), 10);
-      return isNaN(n) ? max : Math.max(max, n);
-    }, 0);
-    return `t${highest + 1}`;
+    return nanoid();
   }
 
   addComment(line: number, text: string): void {
@@ -62,6 +68,21 @@ export class ReviewState {
         thread.status = "resolved";
       }
     }
+  }
+
+  resolveAll(): void {
+    for (const thread of this.threads) {
+      if (thread.status !== "resolved" && thread.status !== "outdated") {
+        thread.status = "resolved";
+      }
+    }
+  }
+
+  reset(newSpecLines: string[]): void {
+    this.specLines = newSpecLines;
+    this.threads = [];
+    this.cursorLine = 1;
+    this._unreadThreadIds.clear();
   }
 
   threadAtLine(line: number): Thread | null {
