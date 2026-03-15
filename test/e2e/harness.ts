@@ -7,11 +7,12 @@ const CLI = resolve(import.meta.dir, "../../bin/revspec.ts");
 // Strip ANSI escape sequences and terminal control sequences
 function stripAnsi(str: string): string {
   return str
-    .replace(/\x1bP[^\x1b]*\x1b\\/g, "")      // DCS sequences (tmux passthrough etc)
-    .replace(/\x1b\[[0-9;?>=!]*[ -/]*[A-Za-z@`~]/g, "") // CSI sequences (incl. private mode, cursor style)
-    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "")  // OSC sequences (BEL or ST terminated)
+    .replace(/\x1bP(?:[^\x1b]|\x1b[^\\])*\x1b\\/g, "") // DCS sequences (tmux passthrough etc)
+    .replace(/\x1b\[[0-9;?>=!]*[ -/]*[A-Za-z@`~]/g, "") // CSI sequences
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "")  // OSC sequences
     .replace(/\x1b[()][0-9A-Z]/g, "")          // Character set
     .replace(/\x1b[>=<]/g, "")                  // Mode changes
+    .replace(/\x1b./g, "")                      // Any remaining ESC+char
     .replace(/\r/g, "")                         // Carriage returns
     .replace(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/g, "YYYY-MM-DD HH:MM:SS"); // Normalize timestamps
 }
