@@ -100,8 +100,11 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
 
     dialog.content.add(select);
 
-    // Focus the select so it handles j/k navigation
-    renderer.focusRenderable(select);
+    // Focus the select so it handles j/k navigation and Enter selection
+    setTimeout(() => {
+      renderer.focusRenderable(select);
+      renderer.requestRender();
+    }, 0);
 
     // Listen for item selection (Enter key)
     select.on(SelectRenderableEvents.ITEM_SELECTED, () => {
