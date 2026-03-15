@@ -51,5 +51,5 @@ export const HELP_HINTS: Hint[] = [
 
 export const CONFIRM_HINTS: Hint[] = [
   { key: "y/Enter", action: "yes" },
-  { key: "n/Esc", action: "no" },
+  { key: "q/Esc", action: "no" },
 ];

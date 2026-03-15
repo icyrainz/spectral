@@ -56,7 +56,7 @@ export function createConfirm(opts: ConfirmOptions): ConfirmOverlay {
       onConfirm();
       return;
     }
-    if (key.name === "n") {
+    if (key.name === "n" || key.name === "q") {
       key.preventDefault();
       key.stopPropagation();
       onCancel();
