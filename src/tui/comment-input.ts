@@ -201,7 +201,7 @@ function createThreadView(
   container.add(textarea);
 
   // --- Hint bar (changes with mode) ---
-  const hintNormal = " NORMAL  j/k:scroll  Ctrl+D/U:halfpage  c:reply  r:resolve  Esc:close";
+  const hintNormal = " NORMAL  c:reply  r:resolve  ?:help  Esc:close";
   const hintInsert = " INSERT  [Tab] send  [Esc] normal mode";
 
   const hint = new TextRenderable(renderer, {
@@ -265,6 +265,9 @@ function createThreadView(
     }
 
     // --- NORMAL MODE (textarea blurred, all keys are ours) ---
+    if (process.env.REVSPEC_DEBUG === "1") {
+      process.stderr.write(`[comment-input NORMAL] key=${key.name} ctrl=${key.ctrl}\n`);
+    }
     key.preventDefault(); key.stopPropagation();
 
     switch (key.name) {
