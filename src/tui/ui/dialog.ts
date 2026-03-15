@@ -5,7 +5,7 @@ import {
   type CliRenderer,
   type KeyEvent,
 } from "@opentui/core";
-import { theme, SPLIT_BORDER } from "./theme";
+import { theme } from "./theme";
 import { buildHints, type Hint } from "./hint-bar";
 
 export interface DialogOptions {
@@ -48,7 +48,6 @@ export function createDialog(opts: DialogOptions): DialogComponents {
     border: true,
     borderStyle: "single",
     borderColor,
-    customBorderChars: SPLIT_BORDER,
     title: ` ${title} `,
     flexDirection: "column",
     paddingLeft: 1,
