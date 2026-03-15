@@ -645,8 +645,8 @@ export async function runTui(
           if (next !== null) {
             state.cursorLine = next;
             ensureCursorVisible();
-            refreshPager();
           }
+          refreshPager();
           break;
         }
         case "prev-thread": {
@@ -654,8 +654,8 @@ export async function runTui(
           if (prev !== null) {
             state.cursorLine = prev;
             ensureCursorVisible();
-            refreshPager();
           }
+          refreshPager();
           break;
         }
         case "next-unread": {
@@ -663,8 +663,8 @@ export async function runTui(
           if (nextLine !== null) {
             state.cursorLine = nextLine;
             ensureCursorVisible();
-            refreshPager();
           }
+          refreshPager();
           break;
         }
         case "prev-unread": {
@@ -672,8 +672,8 @@ export async function runTui(
           if (prevLine !== null) {
             state.cursorLine = prevLine;
             ensureCursorVisible();
-            refreshPager();
           }
+          refreshPager();
           break;
         }
         case "help":

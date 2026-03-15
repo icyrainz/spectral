@@ -138,6 +138,7 @@ export class ReviewState {
 
   deleteThread(threadId: string): void {
     this.threads = this.threads.filter((t) => t.id !== threadId);
+    this._unreadThreadIds.delete(threadId);
   }
 
   addOwnerReply(threadId: string, text: string, ts?: number): void {
