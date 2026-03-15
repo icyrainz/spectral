@@ -14,7 +14,8 @@ function stripAnsi(str: string): string {
     .replace(/\x1b./g, "")
     .replace(/\r/g, "")
     .replace(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/g, "YYYY-MM-DD HH:MM:SS")
-    .replace(/revspec v\d+\.\d+\.\d+/g, "revspec vX.Y.Z");
+    .replace(/revspec v\d+\.\d+\.\d+/g, "revspec vX.Y.Z")
+    .replace(/#[0-9a-z]{6,10}/g, "#THREADID"); // Normalize nanoid thread IDs
 }
 
 export interface TuiHarness {

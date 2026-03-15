@@ -67,18 +67,17 @@ Revspec renders markdown in-place (toggle with `m`):
 | `R` | Resolve all pending |
 | `dd` | Delete thread (with confirm) |
 | `T` | List threads |
-| `a` | Approve spec |
+| `S` | Submit for rewrite |
+| `A` | Approve spec |
 
 **Commands**
 
 | Key | Action |
 |-----|--------|
-| `:w` | Merge changes to review JSON |
-| `:wq` / `:qw` | Merge and quit |
-| `:q` | Quit (blocks if unsaved) |
-| `:q!` | Quit without merging |
+| `:q` | Quit (warns if unresolved threads) |
+| `:q!` | Force quit |
 | `:{N}` | Jump to line N (e.g. `:42`) |
-| `Ctrl+C` | Quit without merging |
+| `Ctrl+C` | Force quit |
 | `?` | Help |
 
 ### Thread popup

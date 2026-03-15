@@ -76,36 +76,44 @@ revspec reply <spec-file> t1 "Good point. I'll clarify — it uses polling to de
 
 After replying to all comments, run `revspec watch` again to wait for the next batch.
 
-**If watch returns "Session ended. Reviewer exited revspec."** — the reviewer closed the TUI. Check the review JSON for resolved threads that require spec changes (see Step 4). If no resolved threads, stop and wait — the user can invoke `/revspec` again later to resume.
+**If watch returns "Session ended. Reviewer exited revspec."** — the reviewer closed the TUI. Stop and wait — the user can invoke `/revspec` again later.
 
 **Important:** Your replies should be substantive — address the concern, explain your reasoning, or acknowledge the change you'll make. Don't just say "noted" or "will fix."
 
-## Step 4: Handle Session End or Approval
+## Step 4: Handle Submit, Session End, or Approval
 
-The watch loop ends in one of two ways:
+The watch loop ends in one of three ways:
+
+### Submit (reviewer pressed `S`)
+
+Watch returns resolved thread summaries:
+
+```
+=== Submit: Rewrite Requested ===
+
+Resolved threads:
+  x1a3f (line 14): "this is unclear"
+    → AI: "I'll clarify the polling vs webhook distinction."
+
+Rewrite the spec incorporating the above, then run: revspec watch spec.md
+```
+
+1. Read the current spec and compare against the resolved threads
+2. If changes are needed: rewrite the spec and save — this triggers the TUI to reload automatically
+3. If the spec already reflects the feedback (e.g., crash recovery): skip rewrite
+4. Run `revspec watch` again — the reviewer is still in the TUI and will see the new content
+
+**Important:** Watch may re-output the submit summary on crash recovery. Always verify whether the spec already incorporates the feedback before rewriting.
 
 ### Session ended (reviewer exited with `:q`)
 
-Read the review JSON and check for **resolved threads**. Resolved = the reviewer acknowledged your reply and wants you to make that change.
+The reviewer closed the TUI. Stop and wait — the user can invoke `/revspec` again later.
 
-**If resolved threads with actionable feedback exist:**
-1. Rewrite the spec incorporating the feedback from resolved threads
-2. Commit the updated spec
-3. Append a round marker to the JSONL:
-   ```bash
-   echo '{"type":"round","author":"owner","round":2,"ts":'$(date +%s000)'}' >> <spec-file>.review.live.jsonl
-   ```
-4. Launch a new revspec session (go back to Step 2) so the reviewer can verify the changes
-
-**If no resolved threads (or only open/pending threads):**
-The reviewer left without resolving anything — stop and wait. The user can invoke `/revspec` again later.
-
-### Approved (reviewer pressed `a`)
+### Approved (reviewer pressed `A`)
 
 Watch returns:
 ```
 Review approved.
-Review file: <path-to-review.json>
 ```
 
 The spec is finalized. Report: "Spec approved and finalized at `<spec-file>`. Ready to proceed with implementation."
@@ -115,7 +123,6 @@ The spec is finalized. Report: "Spec approved and finalized at `<spec-file>`. Re
 - **Open** — under discussion, AI replied, reviewer hasn't responded yet
 - **Pending** — owner replied, waiting for reviewer to read
 - **Resolved** — reviewer acknowledged the plan, AI should make the change
-- **Approve** — spec is final, proceed to implementation
 
 ## Loop Summary
 
@@ -123,9 +130,9 @@ The spec is finalized. Report: "Spec approved and finalized at `<spec-file>`. Re
 1. Launch revspec on spec file
 2. Watch for comments
 3. Reply to each comment
-4. Watch again (repeat 2-3 until session-end or approval)
-5. On session-end: check for resolved threads
-6. If resolved threads need spec changes: rewrite spec, launch new round (go to 1)
+4. Watch again (repeat 2-3 until submit/session-end/approval)
+5. On submit: verify and rewrite spec if needed (triggers TUI reload), go to step 2
+6. On session-end: stop, user will invoke /revspec again if needed
 7. On approval: spec is finalized, done
 ```
 

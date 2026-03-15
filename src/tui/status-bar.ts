@@ -90,6 +90,7 @@ export function buildBottomBar(bar: BottomBarComponents, commandBuffer: string |
   if (hasThread) {
     hints.push({ key: "r", action: "resolve" });
   }
+  hints.push({ key: "S", action: "submit" });
   hints.push({ key: "?", action: "help" });
   buildHints(t, hints);
 }

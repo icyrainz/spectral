@@ -102,16 +102,15 @@ export function createHelp(opts: {
     "  R         Resolve all pending",
     "  dd        Delete thread",
     "  T         List threads",
-    "  a         Approve spec",
+    "  S         Submit for rewrite",
+    "  A         Approve spec",
   ]);
 
   addHelpSection(dialog.content, renderer, "Commands", [
-    "  :w        Merge to review JSON",
-    "  :wq       Merge and quit",
-    "  :q        Quit (blocks if unmerged)",
-    "  :q!       Quit without merging",
+    "  :q        Quit (warns if unresolved)",
+    "  :q!       Force quit",
     "  :{N}      Jump to line N",
-    "  Ctrl+C    Quit without merging",
+    "  Ctrl+C    Force quit",
   ]);
 
   // Trailing blank line
