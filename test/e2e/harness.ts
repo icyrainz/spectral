@@ -4,15 +4,16 @@ import { unlinkSync, existsSync } from "fs";
 
 const CLI = resolve(import.meta.dir, "../../bin/revspec.ts");
 
-// Strip ANSI escape sequences
+// Strip ANSI escape sequences and terminal control sequences
 function stripAnsi(str: string): string {
   return str
-    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")  // CSI sequences
-    .replace(/\x1b\][^\x07]*\x07/g, "")       // OSC sequences
-    .replace(/\x1b[()][0-9A-Z]/g, "")         // Character set
-    .replace(/\x1b[>=<]/g, "")                 // Mode changes
-    .replace(/\x1b\[\?[0-9;]*[hl]/g, "")      // Private mode set/reset
-    .replace(/\r/g, "");                        // Carriage returns
+    .replace(/\x1bP[^\x1b]*\x1b\\/g, "")      // DCS sequences (tmux passthrough etc)
+    .replace(/\x1b\[[0-9;?>=!]*[ -/]*[A-Za-z@`~]/g, "") // CSI sequences (incl. private mode, cursor style)
+    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "")  // OSC sequences (BEL or ST terminated)
+    .replace(/\x1b[()][0-9A-Z]/g, "")          // Character set
+    .replace(/\x1b[>=<]/g, "")                  // Mode changes
+    .replace(/\r/g, "")                         // Carriage returns
+    .replace(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/g, "YYYY-MM-DD HH:MM:SS"); // Normalize timestamps
 }
 
 export interface TuiHarness {
