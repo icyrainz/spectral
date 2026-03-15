@@ -9,7 +9,8 @@ export type LiveEventType =
   | "approve"
   | "delete"
   | "round"
-  | "session-end";
+  | "session-end"
+  | "submit";
 
 export interface LiveEvent {
   type: LiveEventType;
@@ -30,6 +31,7 @@ const VALID_LIVE_EVENT_TYPES: readonly LiveEventType[] = [
   "delete",
   "round",
   "session-end",
+  "submit",
 ];
 
 export function isValidLiveEvent(value: unknown): value is LiveEvent {
@@ -49,7 +51,7 @@ export function isValidLiveEvent(value: unknown): value is LiveEvent {
   if (typeof v.author !== "string") return false;
 
   // threadId required for all except approve, round, and session-end
-  if (v.type !== "approve" && v.type !== "round" && v.type !== "session-end") {
+  if (v.type !== "approve" && v.type !== "round" && v.type !== "session-end" && v.type !== "submit") {
     if (typeof v.threadId !== "string") return false;
   }
 
@@ -205,6 +207,7 @@ export function replayEventsToThreads(events: LiveEvent[]): Thread[] {
 
       case "approve":
       case "round":
+      case "submit":
         // Skip these event types
         break;
     }
