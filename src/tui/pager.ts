@@ -46,13 +46,19 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
       specText = specText.replace(regex, (match) => `>>${match}<<`);
     }
 
-    let line = `${prefix}${padLineNum(lineNum)}  ${specText}`;
-
+    // Thread indicator goes left, next to line number
+    let indicator = " ";
     if (thread) {
-      const icon = STATUS_ICONS[thread.status];
+      const isUnread = unreadThreadIds && unreadThreadIds.has(thread.id);
+      indicator = isUnread ? "+" : STATUS_ICONS[thread.status];
+    }
+
+    let line = `${prefix}${indicator}${padLineNum(lineNum)}  ${specText}`;
+
+    // Thread hint on the right (truncated preview of last message)
+    if (thread) {
       const hint = threadHint(thread);
-      const unreadPrefix = unreadThreadIds && unreadThreadIds.has(thread.id) ? "[+] " : "";
-      line += `  ${unreadPrefix}${icon} ${hint}`;
+      if (hint) line += `  ${hint}`;
     }
 
     lines.push(line);
@@ -124,7 +130,7 @@ export function createPager(renderer: CliRenderer): PagerComponents {
     flexGrow: 1,
     flexShrink: 1,
     scrollY: true,
-    scrollX: false,
+    scrollX: true,
     backgroundColor: theme.base,
   });
 
