@@ -14,7 +14,8 @@ function stripAnsi(str: string): string {
     .replace(/\x1b[>=<]/g, "")                  // Mode changes
     .replace(/\x1b./g, "")                      // Any remaining ESC+char
     .replace(/\r/g, "")                         // Carriage returns
-    .replace(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/g, "YYYY-MM-DD HH:MM:SS"); // Normalize timestamps
+    .replace(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/g, "YYYY-MM-DD HH:MM:SS") // Normalize timestamps
+    .replace(/revspec v\d+\.\d+\.\d+/g, "revspec vX.Y.Z"); // Normalize version
 }
 
 export interface TuiHarness {
@@ -91,9 +92,9 @@ export async function createHarness(specFile: string, opts?: { cols?: number; ro
 
   async function quit(): Promise<void> {
     sendKeys("\x1b"); // Esc first to clear any state
-    await wait(100);
+    await wait(50);
     sendKeys(":q!\n");
-    await wait(500);
+    await wait(200);
     try {
       pty.kill();
     } catch {}
@@ -101,7 +102,7 @@ export async function createHarness(specFile: string, opts?: { cols?: number; ro
   }
 
   // Wait for initial render
-  await wait(800);
+  await wait(300);
 
   return { sendKeys, wait, capture, contains, quit, cleanReviewFiles };
 }
