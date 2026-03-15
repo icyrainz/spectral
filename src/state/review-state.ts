@@ -101,7 +101,8 @@ export class ReviewState {
   }
 
   canApprove(): boolean {
-    if (this.threads.length === 0) return false;
+    // No threads = clean approval (spec is good as-is)
+    if (this.threads.length === 0) return true;
     return this.threads.every(
       (t) => t.status === "resolved" || t.status === "outdated"
     );

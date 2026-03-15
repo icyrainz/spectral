@@ -233,9 +233,9 @@ describe("ReviewState", () => {
       expect(state.canApprove()).toBe(false);
     });
 
-    it("returns false when there are no threads", () => {
+    it("returns true when there are no threads (clean approval)", () => {
       const state = new ReviewState(SPEC, []);
-      expect(state.canApprove()).toBe(false);
+      expect(state.canApprove()).toBe(true);
     });
   });
 
