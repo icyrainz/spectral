@@ -93,7 +93,6 @@ describe("revspec watch", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toContain("Review approved");
-    expect(result.stdout).toContain("spec.review.json");
   });
 
   it("includes thread history for replies", async () => {
@@ -212,5 +211,56 @@ describe("revspec watch", () => {
     });
     await proc.exited;
     expect(proc.exitCode).toBe(0);
+  });
+
+  it("outputs submit message with resolved threads", async () => {
+    tmpDir = setupTempDir();
+    const { specPath, jsonlPath } = createSpecWithJsonl(tmpDir);
+
+    appendEvent(jsonlPath, { type: "comment", threadId: "x1", line: 5, author: "reviewer", text: "unclear", ts: 1 });
+    appendEvent(jsonlPath, { type: "reply", threadId: "x1", author: "owner", text: "will clarify", ts: 2 });
+    appendEvent(jsonlPath, { type: "resolve", threadId: "x1", author: "reviewer", ts: 3 });
+    appendEvent(jsonlPath, { type: "submit", author: "reviewer", ts: 4 });
+
+    const result = await runCli(["watch", specPath]);
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("Submit: Rewrite Requested");
+    expect(result.stdout).toContain("x1 (line 5)");
+    expect(result.stdout).toContain("unclear");
+    expect(result.stdout).toContain("will clarify");
+  });
+
+  it("recovers pending submit on restart", async () => {
+    tmpDir = setupTempDir();
+    const { specPath, jsonlPath } = createSpecWithJsonl(tmpDir);
+
+    appendEvent(jsonlPath, { type: "comment", threadId: "x1", line: 3, author: "reviewer", text: "fix this", ts: 1 });
+    appendEvent(jsonlPath, { type: "resolve", threadId: "x1", author: "reviewer", ts: 2 });
+    appendEvent(jsonlPath, { type: "submit", author: "reviewer", ts: 3 });
+
+    // First watch — consumes the submit
+    await runCli(["watch", specPath]);
+
+    // Second watch — should re-output the pending submit
+    const result = await runCli(["watch", specPath]);
+
+    expect(result.stdout).toContain("Submit: Rewrite Requested");
+    expect(result.stdout).toContain("fix this");
+  });
+
+  it("submit takes priority over session-end in same batch", async () => {
+    tmpDir = setupTempDir();
+    const { specPath, jsonlPath } = createSpecWithJsonl(tmpDir);
+
+    appendEvent(jsonlPath, { type: "comment", threadId: "x1", line: 1, author: "reviewer", text: "change this", ts: 1 });
+    appendEvent(jsonlPath, { type: "resolve", threadId: "x1", author: "reviewer", ts: 2 });
+    appendEvent(jsonlPath, { type: "submit", author: "reviewer", ts: 3 });
+    appendEvent(jsonlPath, { type: "session-end", author: "reviewer", ts: 4 });
+
+    const result = await runCli(["watch", specPath]);
+
+    expect(result.stdout).toContain("Submit: Rewrite Requested");
+    expect(result.stdout).not.toContain("Session ended");
   });
 });

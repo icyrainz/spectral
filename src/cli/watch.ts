@@ -73,7 +73,7 @@ export async function runWatch(specFile: string): Promise<void> {
       offset
     );
     if (result.approved) {
-      console.log(`Review approved.\nReview file: ${reviewPath}`);
+      console.log("Review approved.");
       cleanupFiles(lockPath, offsetPath);
     } else if (result.output) {
       process.stdout.write(result.output);
@@ -99,7 +99,7 @@ export async function runWatch(specFile: string): Promise<void> {
       );
 
       if (result.approved) {
-        console.log(`Review approved.\nReview file: ${reviewPath}`);
+        console.log("Review approved.");
         cleanupFiles(lockPath, offsetPath);
         process.exit(0);
       }
@@ -180,7 +180,24 @@ function processNewEvents(
 
   const { events, newOffset } = readEventsFromOffset(jsonlPath, offset);
 
+  // Recovery: detect pending unprocessed submit
   if (events.length === 0) {
+    const { events: allEvents } = readEventsFromOffset(jsonlPath, 0);
+    const lastSubmitIdx = allEvents.findLastIndex(e => e.type === "submit");
+    if (lastSubmitIdx >= 0) {
+      const afterSubmit = allEvents.slice(lastSubmitIdx + 1);
+      const hasNewActivity = afterSubmit.some(e =>
+        e.type === "comment" || e.type === "reply" ||
+        e.type === "approve" || e.type === "session-end"
+      );
+      if (!hasNewActivity) {
+        const roundStart = findCurrentRoundStartIndex(allEvents);
+        const currentRoundThreads = replayEventsToThreads(allEvents.slice(roundStart));
+        const resolved = currentRoundThreads.filter(t => t.status === "resolved");
+        const output = formatSubmitOutput(resolved, specPath);
+        return { approved: false, output, newOffset: offset };
+      }
+    }
     return { approved: false, output: "", newOffset: offset };
   }
 
@@ -191,6 +208,17 @@ function processNewEvents(
   const hasApprove = events.some((e) => e.type === "approve");
   if (hasApprove) {
     return { approved: true, output: "", newOffset };
+  }
+
+  // Check for submit event — priority over session-end
+  const hasSubmit = events.some((e) => e.type === "submit");
+  if (hasSubmit) {
+    const { events: allEvents } = readEventsFromOffset(jsonlPath, 0);
+    const roundStart = findCurrentRoundStartIndex(allEvents);
+    const currentRoundThreads = replayEventsToThreads(allEvents.slice(roundStart));
+    const resolved = currentRoundThreads.filter(t => t.status === "resolved");
+    const output = formatSubmitOutput(resolved, specPath);
+    return { approved: false, output, newOffset };
   }
 
   // Check for session-end — TUI exited, break the loop
@@ -366,6 +394,41 @@ function getContext(
     result.push(`${prefix} ${i + 1}: ${specLines[i]}`);
   }
   return result;
+}
+
+function findCurrentRoundStartIndex(events: LiveEvent[]): number {
+  let count = 0;
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (events[i].type === "submit") {
+      count++;
+      if (count === 2) return i + 1;
+    }
+  }
+  return 0;
+}
+
+function formatSubmitOutput(
+  resolvedThreads: Thread[],
+  specPath: string
+): string {
+  const lines: string[] = [];
+  lines.push("=== Submit: Rewrite Requested ===");
+  lines.push("");
+  if (resolvedThreads.length > 0) {
+    lines.push("Resolved threads:");
+    for (const t of resolvedThreads) {
+      const reviewerMsgs = t.messages.filter(m => m.author === "reviewer");
+      const ownerMsgs = t.messages.filter(m => m.author === "owner");
+      lines.push(`  ${t.id} (line ${t.line}): "${reviewerMsgs.map(m => m.text).join("; ")}"`);
+      if (ownerMsgs.length > 0) {
+        lines.push(`    → AI: "${ownerMsgs.map(m => m.text).join("; ")}"`);
+      }
+    }
+    lines.push("");
+  }
+  lines.push(`Rewrite the spec incorporating the above, then run: revspec watch ${basename(specPath)}`);
+  lines.push("");
+  return lines.join("\n");
 }
 
 function cleanupFiles(lockPath: string, offsetPath: string): void {
