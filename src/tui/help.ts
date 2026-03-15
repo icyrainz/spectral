@@ -18,11 +18,14 @@ export interface HelpOverlay {
  */
 export function createHelp(opts: {
   renderer: CliRenderer;
+  version: string;
   onClose: () => void;
 }): HelpOverlay {
-  const { renderer, onClose } = opts;
+  const { renderer, version, onClose } = opts;
 
   const helpText = [
+    "",
+    `  revspec v${version}`,
     "",
     "  Navigation",
     "  j/k       Down/up",
@@ -35,10 +38,7 @@ export function createHelp(opts: {
     "  ]t/[t     Next/prev thread",
     "  ]r/[r     Next/prev unread thread",
     "",
-    "  View",
-    "  m         Toggle markdown / line mode",
-    "",
-    "  Review (switches to line mode)",
+    "  Review",
     "  c         Comment / view thread / reply",
     "  r         Resolve thread",
     "  R         Resolve all pending",

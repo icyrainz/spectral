@@ -29,6 +29,7 @@ const VALID_LIVE_EVENT_TYPES: readonly LiveEventType[] = [
   "approve",
   "delete",
   "round",
+  "session-end",
 ];
 
 export function isValidLiveEvent(value: unknown): value is LiveEvent {
@@ -47,8 +48,8 @@ export function isValidLiveEvent(value: unknown): value is LiveEvent {
   if (typeof v.ts !== "number") return false;
   if (typeof v.author !== "string") return false;
 
-  // threadId required for all except approve and round
-  if (v.type !== "approve" && v.type !== "round") {
+  // threadId required for all except approve, round, and session-end
+  if (v.type !== "approve" && v.type !== "round" && v.type !== "session-end") {
     if (typeof v.threadId !== "string") return false;
   }
 

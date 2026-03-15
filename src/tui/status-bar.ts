@@ -1,87 +1,139 @@
-import { TextRenderable, type CliRenderer } from "@opentui/core";
+import { BoxRenderable, TextRenderable, TextNodeRenderable, TextAttributes, type CliRenderer } from "@opentui/core";
 import type { ReviewState } from "../state/review-state";
 import { basename } from "path";
 import { theme } from "./theme";
 
 export interface TopBarComponents {
-  bar: TextRenderable;
+  box: BoxRenderable;
+  text: TextRenderable;
 }
 
 export interface BottomBarComponents {
-  bar: TextRenderable;
+  box: BoxRenderable;
+  text: TextRenderable;
 }
 
 /**
- * Build the top bar text: filename + thread summary.
+ * Build the top bar with styled TextNodes.
  */
-export function buildTopBarText(
+export function buildTopBar(
+  bar: TopBarComponents,
   specFile: string,
   state: ReviewState,
   unreadCount?: number,
   specChanged?: boolean,
-  mode?: "markdown" | "line"
-): string {
+): void {
+  const t = bar.text;
+  t.clear();
   const name = basename(specFile);
-  const modeLabel = mode === "markdown" ? "[md]" : mode === "line" ? "[line]" : "";
   const { open, pending } = state.activeThreadCount();
-  const parts: string[] = [];
-  if (open > 0) parts.push(`${open} open`);
-  if (pending > 0) parts.push(`${pending} pending`);
-  const threadSummary =
-    parts.length > 0 ? `Threads: ${parts.join(", ")}` : "No active threads";
-  let result = ` ${name}  ${modeLabel}  |  ${threadSummary}`;
+
+  // Filename — bold
+  t.add(TextNodeRenderable.fromString(` ${name}`, { fg: theme.text, attributes: TextAttributes.BOLD }));
+
+  t.add(TextNodeRenderable.fromString("  |  ", { fg: theme.overlay }));
+
+  // Thread summary
+  if (open > 0 || pending > 0) {
+    const parts: string[] = [];
+    if (open > 0) parts.push(`${open} open`);
+    if (pending > 0) parts.push(`${pending} pending`);
+    t.add(TextNodeRenderable.fromString(parts.join(", "), { fg: theme.yellow }));
+  } else {
+    t.add(TextNodeRenderable.fromString("No active threads", { fg: theme.subtext }));
+  }
+
+  // Unread replies
   if (unreadCount && unreadCount > 0) {
-    result += ` | ${unreadCount} new repl${unreadCount === 1 ? "y" : "ies"}`;
+    t.add(TextNodeRenderable.fromString("  |  ", { fg: theme.overlay }));
+    t.add(TextNodeRenderable.fromString(
+      `${unreadCount} new repl${unreadCount === 1 ? "y" : "ies"}`,
+      { fg: theme.green, attributes: TextAttributes.BOLD }
+    ));
   }
+
+  // Spec changed warning
   if (specChanged) {
-    result += ` | !! Spec changed externally`;
+    t.add(TextNodeRenderable.fromString("  |  ", { fg: theme.overlay }));
+    t.add(TextNodeRenderable.fromString("!! Spec changed externally", { fg: theme.red, attributes: TextAttributes.BOLD }));
   }
-  result += `  |  L${state.cursorLine}/${state.lineCount}`;
-  return result;
+
+  // Cursor position
+  t.add(TextNodeRenderable.fromString("  |  ", { fg: theme.overlay }));
+  t.add(TextNodeRenderable.fromString(`L${state.cursorLine}/${state.lineCount}`, { fg: theme.subtext }));
 }
 
 /**
- * Build the bottom bar text: keybinding hints.
- * Contextually shows command buffer when in command mode.
- * Prepends mode indicator when provided.
+ * Build the bottom bar with styled TextNodes.
  */
-export function buildBottomBarText(commandBuffer: string | null): string {
+export function buildBottomBar(bar: BottomBarComponents, commandBuffer: string | null): void {
+  const t = bar.text;
+  t.clear();
   if (commandBuffer !== null) {
-    return ` :${commandBuffer}`;
+    t.add(TextNodeRenderable.fromString(` :${commandBuffer}`, { fg: theme.text }));
+    return;
   }
-  return ` [j/k] move  [c] comment  [r] resolve  [/] search  [?] help`;
+  const hints = [
+    { key: "j/k", action: "move" },
+    { key: "c", action: "comment" },
+    { key: "r", action: "resolve" },
+    { key: "/", action: "search" },
+    { key: "?", action: "help" },
+  ];
+  t.add(TextNodeRenderable.fromString(" ", {}));
+  for (let i = 0; i < hints.length; i++) {
+    const h = hints[i];
+    t.add(TextNodeRenderable.fromString(`[${h.key}]`, { fg: theme.blue }));
+    t.add(TextNodeRenderable.fromString(` ${h.action}`, { fg: theme.subtext }));
+    if (i < hints.length - 1) {
+      t.add(TextNodeRenderable.fromString("  ", {}));
+    }
+  }
 }
 
 /**
- * Create the top status bar.
+ * Create the top status bar (BoxRenderable with backgroundColor for full-width fill).
  */
 export function createTopBar(renderer: CliRenderer): TopBarComponents {
-  const bar = new TextRenderable(renderer, {
-    content: "",
+  const box = new BoxRenderable(renderer, {
     width: "100%",
     height: 1,
-    bg: theme.surface0,
+    backgroundColor: theme.base,
+    border: ["bottom"],
+    borderColor: theme.surface1,
+  });
+
+  const text = new TextRenderable(renderer, {
+    content: "",
+    width: "100%",
     fg: theme.text,
     wrapMode: "none",
     truncate: true,
   });
 
-  return { bar };
+  box.add(text);
+  return { box, text };
 }
 
 /**
  * Create the bottom status bar.
  */
 export function createBottomBar(renderer: CliRenderer): BottomBarComponents {
-  const bar = new TextRenderable(renderer, {
-    content: "",
+  const box = new BoxRenderable(renderer, {
     width: "100%",
     height: 1,
-    bg: theme.surface0,
+    flexShrink: 0,
+    backgroundColor: theme.surface0,
+  });
+
+  const text = new TextRenderable(renderer, {
+    content: "",
+    width: "100%",
     fg: theme.text,
     wrapMode: "none",
     truncate: true,
   });
 
-  return { bar };
+  box.add(text);
+  return { box, text };
 }

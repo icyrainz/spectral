@@ -13,10 +13,10 @@ import { mergeJsonlIntoReview } from "../protocol/live-merge";
 import type { Thread } from "../protocol/types";
 import { ReviewState } from "../state/review-state";
 import { createLiveWatcher, type LiveWatcher } from "./live-watcher";
-import { buildPagerContent, createPager, togglePagerMode, ensureLineMode, type PagerComponents } from "./pager";
+import { buildPagerNodes, createPager, countExtraVisualLines, type PagerComponents } from "./pager";
 import {
-  buildTopBarText,
-  buildBottomBarText,
+  buildTopBar,
+  buildBottomBar,
   createTopBar,
   createBottomBar,
   type TopBarComponents,
@@ -32,7 +32,8 @@ import { createHelp } from "./help";
 export async function runTui(
   specFile: string,
   reviewPath: string,
-  draftPath: string
+  draftPath: string,
+  version?: string
 ): Promise<void> {
   // 1. Read spec file into lines
   const specContent = readFileSync(specFile, "utf8");
@@ -99,21 +100,20 @@ export async function runTui(
     useMouse: false,
   });
 
-  // 6. Build layout: top bar, pager, bottom bar in a column
+  // 6. Build layout (opencode pattern): flex column, scrollbox fills middle
   const rootBox = new BoxRenderable(renderer, {
-    width: "100%",
-    height: "100%",
+    flexGrow: 1,
     flexDirection: "column",
+    width: "100%",
   });
 
   const topBar: TopBarComponents = createTopBar(renderer);
   const pager: PagerComponents = createPager(renderer);
   const bottomBar: BottomBarComponents = createBottomBar(renderer);
 
-  rootBox.add(topBar.bar);
+  rootBox.add(topBar.box);
   rootBox.add(pager.scrollBox);
-  rootBox.add(bottomBar.bar);
-
+  rootBox.add(bottomBar.box);
   renderer.root.add(rootBox);
 
   // 7. Initial render
@@ -126,13 +126,9 @@ export async function runTui(
       }
     } catch {}
 
-    if (pager.mode === "line") {
-      pager.lineNode.content = buildPagerContent(state, searchQuery, state.unreadThreadIds);
-    } else {
-      pager.markdownNode.content = state.specLines.join("\n");
-    }
-    topBar.bar.content = buildTopBarText(specFile, state, state.unreadCount(), specMtimeChanged, pager.mode);
-    bottomBar.bar.content = buildBottomBarText(commandBuffer);
+    buildPagerNodes(pager.lineNode, state, searchQuery, state.unreadThreadIds);
+    buildTopBar(topBar, specFile, state, state.unreadCount(), specMtimeChanged);
+    buildBottomBar(bottomBar, commandBuffer);
     renderer.requestRender();
   }
 
@@ -209,9 +205,9 @@ export async function runTui(
 
   // Helper: scroll pager to ensure cursor line is visible
   function ensureCursorVisible(): void {
-    // Each line in the pager is 1 row of text.
-    // The cursor line index (0-based) in the pager is (state.cursorLine - 1).
-    const cursorRow = state.cursorLine - 1;
+    // Map spec line to visual row, accounting for table border extra lines
+    const extra = countExtraVisualLines(state.specLines, state.cursorLine - 1);
+    const cursorRow = state.cursorLine - 1 + extra;
     const viewportHeight = Math.max(1, renderer.height - 2); // minus top + bottom bar
 
     const currentScroll = pager.scrollBox.scrollTop;
@@ -233,7 +229,7 @@ export async function runTui(
     if (cmd === "w") {
       // Merge JSONL -> JSON, stay open
       doMerge();
-      bottomBar.bar.content = " \u2714 Merged to review JSON";
+      bottomBar.text.content = " \u2714 Merged to review JSON";
       renderer.requestRender();
       setTimeout(() => { refreshPager(); }, 1200);
       return "stay";
@@ -246,7 +242,7 @@ export async function runTui(
     if (cmd === "q") {
       // Exit only if merged (no pending changes)
       if (hasPendingChanges()) {
-        bottomBar.bar.content = " Unmerged changes. Use :w to save or :q! to discard";
+        bottomBar.text.content = " Unmerged changes. Use :w to save or :q! to discard";
         renderer.requestRender();
         setTimeout(() => { refreshPager(); }, 2000);
         return "stay";
@@ -354,6 +350,7 @@ export async function runTui(
   function showHelpOverlay(): void {
     const overlay = createHelp({
       renderer,
+      version: version ?? "?",
       onClose: () => {
         dismissOverlay();
       },
@@ -457,29 +454,19 @@ export async function runTui(
       switch (key.name) {
         case "j":
         case "down": {
-          if (pager.mode === "markdown") {
-            pager.scrollBox.scrollBy(1);
-            renderer.requestRender();
-          } else {
-            if (state.cursorLine < state.lineCount) {
-              state.cursorLine++;
-              ensureCursorVisible();
-              refreshPager();
-            }
+          if (state.cursorLine < state.lineCount) {
+            state.cursorLine++;
+            ensureCursorVisible();
+            refreshPager();
           }
           break;
         }
         case "k":
         case "up": {
-          if (pager.mode === "markdown") {
-            pager.scrollBox.scrollBy(-1);
-            renderer.requestRender();
-          } else {
-            if (state.cursorLine > 1) {
-              state.cursorLine--;
-              ensureCursorVisible();
-              refreshPager();
-            }
+          if (state.cursorLine > 1) {
+            state.cursorLine--;
+            ensureCursorVisible();
+            refreshPager();
           }
           break;
         }
@@ -488,17 +475,11 @@ export async function runTui(
           if (key.ctrl) {
             if (deletePendingTimer) { clearTimeout(deletePendingTimer); deletePendingTimer = null; }
             const half = Math.max(1, Math.floor(pageSize() / 2));
-            if (pager.mode === "markdown") {
-              pager.scrollBox.scrollBy(half);
-              renderer.requestRender();
-            } else {
-              state.cursorLine = Math.min(state.cursorLine + half, state.lineCount);
-              ensureCursorVisible();
-              refreshPager();
-            }
+            state.cursorLine = Math.min(state.cursorLine + half, state.lineCount);
+            ensureCursorVisible();
+            refreshPager();
           } else {
             // d without ctrl — delete draft comment (dd = double-tap within 500ms)
-            ensureLineMode(pager);
             refreshPager();
             const thread = state.threadAtLine(state.cursorLine);
             if (!thread) break;
@@ -511,17 +492,17 @@ export async function runTui(
                 state.deleteLastDraftMessage(thread.id);
                 appendEvent(jsonlPath, { type: "delete", threadId: thread.id, author: "reviewer", ts: Date.now() });
                 refreshPager();
-                bottomBar.bar.content = " \u2714 Deleted draft comment";
+                bottomBar.text.content = " \u2714 Deleted draft comment";
                 renderer.requestRender();
                 setTimeout(() => { refreshPager(); }, 1500);
               } else {
-                bottomBar.bar.content = " No reviewer message to delete";
+                bottomBar.text.content = " No reviewer message to delete";
                 renderer.requestRender();
                 setTimeout(() => { refreshPager(); }, 1500);
               }
             } else {
               // First d — show hint and start timer
-              bottomBar.bar.content = " Press d again to delete";
+              bottomBar.text.content = " Press d again to delete";
               renderer.requestRender();
               deletePendingTimer = setTimeout(() => {
                 deletePendingTimer = null;
@@ -535,14 +516,9 @@ export async function runTui(
           // Ctrl+U — half page up
           if (key.ctrl) {
             const half = Math.max(1, Math.floor(pageSize() / 2));
-            if (pager.mode === "markdown") {
-              pager.scrollBox.scrollBy(-half);
-              renderer.requestRender();
-            } else {
-              state.cursorLine = Math.max(state.cursorLine - half, 1);
-              ensureCursorVisible();
-              refreshPager();
-            }
+            state.cursorLine = Math.max(state.cursorLine - half, 1);
+            ensureCursorVisible();
+            refreshPager();
           }
           break;
         }
@@ -555,7 +531,7 @@ export async function runTui(
                 ensureCursorVisible();
               }
             } else {
-              bottomBar.bar.content = " No active search \u2014 use / to search";
+              bottomBar.text.content = " No active search \u2014 use / to search";
               renderer.requestRender();
               setTimeout(() => { refreshPager(); }, 1500);
             }
@@ -568,7 +544,7 @@ export async function runTui(
                 ensureCursorVisible();
               }
             } else {
-              bottomBar.bar.content = " No active search \u2014 use / to search";
+              bottomBar.text.content = " No active search \u2014 use / to search";
               renderer.requestRender();
               setTimeout(() => { refreshPager(); }, 1500);
             }
@@ -576,40 +552,16 @@ export async function runTui(
           refreshPager();
           break;
         }
-        case "m": {
-          // Toggle markdown / line mode with scroll position sync
-          const wasMarkdown = pager.mode === "markdown";
-          togglePagerMode(pager);
-          if (wasMarkdown) {
-            // Markdown -> Line: sync scroll position to cursor
-            state.cursorLine = Math.max(1, pager.scrollBox.scrollTop + 1);
-            refreshPager();
-            ensureCursorVisible();
-          } else {
-            // Line -> Markdown: approximate scroll to cursor position
-            refreshPager();
-            pager.scrollBox.scrollTo(state.cursorLine - 1);
-            renderer.requestRender();
-          }
-          break;
-        }
         case "c": {
-          // Comment: new or reply — auto-switch to line mode
-          ensureLineMode(pager);
-          refreshPager();
           showCommentInput();
           break;
         }
         case "l": {
           // Thread list
-          ensureLineMode(pager);
-          refreshPager();
           showThreadListOverlay();
           break;
         }
         case "r": {
-          ensureLineMode(pager);
-          refreshPager();
           if (!key.shift) {
             // Resolve thread at cursor
             const thread = state.threadAtLine(state.cursorLine);
@@ -622,7 +574,7 @@ export async function runTui(
               const msg = wasResolved
                 ? ` \u21a9 Reopened thread #${thread.id}`
                 : ` \u2714 Resolved thread #${thread.id}`;
-              bottomBar.bar.content = msg;
+              bottomBar.text.content = msg;
               renderer.requestRender();
               setTimeout(() => { refreshPager(); }, 1500);
             }
@@ -635,7 +587,7 @@ export async function runTui(
               appendEvent(jsonlPath, { type: "resolve", threadId: t.id, author: "reviewer", ts: Date.now() });
             }
             refreshPager();
-            bottomBar.bar.content = ` \u2714 Resolved ${pending} pending thread(s)`;
+            bottomBar.text.content = ` \u2714 Resolved ${pending} pending thread(s)`;
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
@@ -643,29 +595,19 @@ export async function runTui(
         }
         case "g": {
           if (key.shift) {
-            // G (shift+g) — go to last line / scroll to bottom
-            if (pager.mode === "markdown") {
-              pager.scrollBox.scrollTo(pager.scrollBox.scrollHeight);
-              renderer.requestRender();
-            } else {
-              state.cursorLine = state.lineCount;
-              ensureCursorVisible();
-              refreshPager();
-            }
+            // G (shift+g) — go to last line
+            state.cursorLine = state.lineCount;
+            ensureCursorVisible();
+            refreshPager();
           } else {
             // g — first of gg sequence
             if (gPendingTimer) {
-              // Second g within 500ms — go to first line / scroll to top
+              // Second g within 500ms — go to first line
               clearTimeout(gPendingTimer);
               gPendingTimer = null;
-              if (pager.mode === "markdown") {
-                pager.scrollBox.scrollTo(0);
-                renderer.requestRender();
-              } else {
-                state.cursorLine = 1;
-                ensureCursorVisible();
-                refreshPager();
-              }
+              state.cursorLine = 1;
+              ensureCursorVisible();
+              refreshPager();
             } else {
               gPendingTimer = setTimeout(() => {
                 gPendingTimer = null;
@@ -676,8 +618,6 @@ export async function runTui(
         }
         case "a": {
           // Approve
-          ensureLineMode(pager);
-          refreshPager();
           if (state.canApprove()) {
             const confirmOverlay = createConfirm({
               renderer,
@@ -701,7 +641,7 @@ export async function runTui(
               total === 0
                 ? "No threads to approve"
                 : `${total} thread${total !== 1 ? "s" : ""} still open/pending`;
-            bottomBar.bar.content = ` \u26a0  ${msg}`;
+            bottomBar.text.content = ` \u26a0  ${msg}`;
             renderer.requestRender();
             setTimeout(() => {
               refreshPager();
@@ -754,7 +694,7 @@ export async function runTui(
           // Check for "]" or "[" to start bracket sequence
           if (key.sequence === "]") {
             bracketPending = "]";
-            bottomBar.bar.content = " ]...";
+            bottomBar.text.content = " ]...";
             renderer.requestRender();
             bracketPendingTimer = setTimeout(() => {
               bracketPending = null;
@@ -765,7 +705,7 @@ export async function runTui(
           }
           if (key.sequence === "[") {
             bracketPending = "[";
-            bottomBar.bar.content = " [...";
+            bottomBar.text.content = " [...";
             renderer.requestRender();
             bracketPendingTimer = setTimeout(() => {
               bracketPending = null;

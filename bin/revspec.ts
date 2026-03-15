@@ -66,7 +66,8 @@ const draftPath = join(specDir, `${specBase}.review.draft.json`);
 
 // 3. Launch TUI (skip if REVSPEC_SKIP_TUI=1)
 if (process.env.REVSPEC_SKIP_TUI !== "1") {
-  await runTui(specPath, reviewPath, draftPath);
+  const pkg = await Bun.file(new URL("../package.json", import.meta.url)).json();
+  await runTui(specPath, reviewPath, draftPath, pkg.version);
 }
 
 // 4. After TUI exits, check if approved via JSONL
