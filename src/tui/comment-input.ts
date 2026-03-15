@@ -2,12 +2,12 @@ import {
   BoxRenderable,
   TextRenderable,
   TextareaRenderable,
-  ScrollBoxRenderable,
   type CliRenderer,
   type KeyEvent,
 } from "@opentui/core";
 import type { Thread, Message } from "../protocol/types";
-import { theme } from "./theme";
+import { theme } from "./ui/theme";
+import { createDialog } from "./ui/dialog";
 
 export interface CommentInputOptions {
   renderer: CliRenderer;
@@ -42,166 +42,53 @@ function createThreadView(
   onResolve: () => void,
   onCancel: () => void,
 ): CommentInputOverlay {
-  const container = new BoxRenderable(renderer, {
-    position: "absolute",
-    top: "5%",
-    left: "10%",
-    width: "80%",
-    height: "85%",
-    zIndex: 100,
-    backgroundColor: theme.base,
-    border: true,
-    borderStyle: "single",
-    borderColor: theme.borderComment,
-    title: thread.id ? ` Thread #${thread.id} (line ${line}) ` : ` New comment on line ${line} `,
-    flexDirection: "column",
-    padding: 1,
-  });
+  const title = thread.id
+    ? `Thread #${thread.id} (line ${line})`
+    : `New comment on line ${line}`;
 
-  // --- Top: scrollable conversation history ---
-  const scrollBox = new ScrollBoxRenderable(renderer, {
-    width: "100%",
-    flexGrow: 1,
-    flexShrink: 1,
-    scrollY: true,
-    scrollX: false,
-  });
+  const normalHints = [
+    { key: "c", action: "reply" },
+    { key: "r", action: "resolve" },
+    { key: "Esc/q", action: "close" },
+  ];
+  const insertHints = [
+    { key: "Tab", action: "send" },
+    { key: "Esc", action: "back" },
+  ];
 
-  function renderMessage(msg: Message): BoxRenderable {
-    const isReviewer = msg.author === "reviewer";
-    const borderColor = isReviewer ? theme.blue : theme.green;
-    const label = isReviewer ? "You" : "AI";
-    const tsStr = msg.ts ? new Date(msg.ts).toISOString().replace("T", " ").slice(0, 19) : "";
+  // --- State ---
+  let mode: "normal" | "insert" = "insert";
 
-    const msgBox = new BoxRenderable(renderer, {
-      width: "100%",
-      border: ["left"],
-      borderColor,
-      paddingLeft: 1,
-      marginBottom: 1,
-      flexDirection: "column",
-    });
-
-    // Header: author + timestamp
-    const header = new TextRenderable(renderer, {
-      content: tsStr ? `${label}  ${tsStr}` : label,
-      width: "100%",
-      height: 1,
-      fg: theme.subtext,
-      wrapMode: "none",
-    });
-    msgBox.add(header);
-
-    // Body: message text
-    const body = new TextRenderable(renderer, {
-      content: msg.text,
-      width: "100%",
-      fg: theme.text,
-      wrapMode: "word",
-    });
-    msgBox.add(body);
-
-    return msgBox;
-  }
-
-  for (const msg of thread.messages) {
-    scrollBox.add(renderMessage(msg));
-  }
-  container.add(scrollBox);
-
-  // --- Separator ---
-  const sep = new TextRenderable(renderer, {
-    content: "\u2500".repeat(40),
-    width: "100%",
-    height: 1,
-    fg: theme.surface1,
-    wrapMode: "none",
-  });
-  container.add(sep);
-
-  // --- Bottom: textarea (visible in both modes, focused only in insert) ---
+  // Build the textarea now (we need it in the key handler closure)
   const textarea = new TextareaRenderable(renderer, {
     width: "100%",
     height: 4,
     flexGrow: 0,
     flexShrink: 0,
-    backgroundColor: theme.surface1,
-    textColor: theme.overlay,
-    focusedBackgroundColor: theme.surface0,
+    backgroundColor: theme.backgroundElement,
+    textColor: theme.textDim,
+    focusedBackgroundColor: theme.backgroundPanel,
     focusedTextColor: theme.text,
     wrapMode: "word",
     placeholder: "Press c to reply...",
-    placeholderColor: theme.overlay,
+    placeholderColor: theme.textDim,
     initialValue: "",
   });
-  container.add(textarea);
 
-  // --- Hint bar (changes with mode) ---
-  const hintNormal = " [c] reply  [r] resolve  [Esc] close";
-  const hintInsert = " [Tab] send  [Esc] back";
-
-  const hint = new TextRenderable(renderer, {
-    content: hintInsert,
-    width: "100%",
-    height: 1,
-    fg: theme.hintFg,
-    bg: theme.hintBg,
-    wrapMode: "none",
-    truncate: true,
-  });
-  container.add(hint);
-
-  // --- State ---
-  let mode: "normal" | "insert" = "insert";
-
-  function enterInsert(): void {
-    mode = "insert";
-    textarea.focus();
-    hint.content = hintInsert;
-    renderer.requestRender();
-  }
-
-  function enterNormal(): void {
-    mode = "normal";
-    textarea.blur();
-    hint.content = hintNormal;
-    renderer.requestRender();
-  }
-
-  // Start in insert mode, scroll conversation to bottom
-  setTimeout(() => {
-    textarea.focus();
-    scrollBox.scrollTo(scrollBox.scrollHeight);
-    renderer.requestRender();
-    setTimeout(() => {
-      scrollBox.scrollTo(scrollBox.scrollHeight);
-      renderer.requestRender();
-    }, 50);
-  }, 0);
-
-  function appendToConversation(msg: Message): void {
-    scrollBox.add(renderMessage(msg));
-    renderer.requestRender();
-    setTimeout(() => {
-      scrollBox.scrollTo(scrollBox.scrollHeight);
-      renderer.requestRender();
-      setTimeout(() => {
-        scrollBox.scrollTo(scrollBox.scrollHeight);
-        renderer.requestRender();
-      }, 50);
-    }, 50);
-  }
-
+  // Register our comprehensive key handler FIRST (before createDialog) so it
+  // fires before the dialog's Esc handler and can stopPropagation in insert mode.
   const keyHandler = (key: KeyEvent) => {
     if (mode === "insert") {
       // --- INSERT MODE ---
       if (key.name === "escape") {
-        key.preventDefault(); key.stopPropagation();
+        key.preventDefault();
+        key.stopPropagation();
         enterNormal();
         return;
       }
       if (key.name === "tab") {
-        key.preventDefault(); key.stopPropagation();
+        key.preventDefault();
+        key.stopPropagation();
         const text = textarea.plainText.trim();
         if (text.length === 0) return;
         onSubmit(text);
@@ -216,7 +103,8 @@ function createThreadView(
     }
 
     // --- NORMAL MODE (textarea blurred, all keys are ours) ---
-    key.preventDefault(); key.stopPropagation();
+    key.preventDefault();
+    key.stopPropagation();
 
     switch (key.name) {
       case "escape":
@@ -246,7 +134,6 @@ function createThreadView(
 
       case "d":
         if (key.ctrl) {
-          // Use same scrollBy as j/k, just more lines
           scrollBox.scrollBy({ x: 0, y: 5 });
           renderer.requestRender();
         }
@@ -272,9 +159,121 @@ function createThreadView(
 
   renderer.keyInput.on("keypress", keyHandler);
 
+  // Now create the dialog (its Esc handler registers after ours)
+  // Pass no-op onDismiss — we handle all keys ourselves above.
+  const dialog = createDialog({
+    renderer,
+    title,
+    width: "80%",
+    height: "85%",
+    borderColor: theme.blue,
+    onDismiss: () => {},
+    hints: insertHints,
+  });
+
+  // --- Scrollable conversation history ---
+  const scrollBox = dialog.content;
+
+  function renderMessage(msg: Message): BoxRenderable {
+    const isReviewer = msg.author === "reviewer";
+    const borderColor = isReviewer ? theme.blue : theme.green;
+    const label = isReviewer ? "You" : "AI";
+    const tsStr = msg.ts ? new Date(msg.ts).toISOString().replace("T", " ").slice(0, 19) : "";
+
+    const msgBox = new BoxRenderable(renderer, {
+      width: "100%",
+      border: ["left"],
+      borderColor,
+      paddingLeft: 1,
+      marginBottom: 1,
+      flexDirection: "column",
+    });
+
+    // Header: author + timestamp
+    const header = new TextRenderable(renderer, {
+      content: tsStr ? `${label}  ${tsStr}` : label,
+      width: "100%",
+      height: 1,
+      fg: theme.textMuted,
+      wrapMode: "none",
+    });
+    msgBox.add(header);
+
+    // Body: message text
+    const body = new TextRenderable(renderer, {
+      content: msg.text,
+      width: "100%",
+      fg: theme.text,
+      wrapMode: "word",
+    });
+    msgBox.add(body);
+
+    return msgBox;
+  }
+
+  for (const msg of thread.messages) {
+    scrollBox.add(renderMessage(msg));
+  }
+
+  // --- Separator ---
+  const sep = new TextRenderable(renderer, {
+    content: "\u2500".repeat(40),
+    width: "100%",
+    height: 1,
+    fg: theme.backgroundElement,
+    wrapMode: "none",
+  });
+  dialog.container.add(sep);
+
+  // --- Textarea (visible in both modes, focused only in insert) ---
+  dialog.container.add(textarea);
+
+  // --- Mode helpers (need dialog.setHints available) ---
+  function enterInsert(): void {
+    mode = "insert";
+    textarea.focus();
+    dialog.setHints(insertHints);
+    renderer.requestRender();
+  }
+
+  function enterNormal(): void {
+    mode = "normal";
+    textarea.blur();
+    dialog.setHints(normalHints);
+    renderer.requestRender();
+  }
+
+  // Start in insert mode, scroll conversation to bottom
+  setTimeout(() => {
+    textarea.focus();
+    scrollBox.scrollTo(scrollBox.scrollHeight);
+    renderer.requestRender();
+    setTimeout(() => {
+      scrollBox.scrollTo(scrollBox.scrollHeight);
+      renderer.requestRender();
+    }, 50);
+  }, 0);
+
+  function appendToConversation(msg: Message): void {
+    scrollBox.add(renderMessage(msg));
+    renderer.requestRender();
+    setTimeout(() => {
+      scrollBox.scrollTo(scrollBox.scrollHeight);
+      renderer.requestRender();
+      setTimeout(() => {
+        scrollBox.scrollTo(scrollBox.scrollHeight);
+        renderer.requestRender();
+      }, 50);
+    }, 50);
+  }
+
   return {
-    container,
-    cleanup() { renderer.keyInput.off("keypress", keyHandler); textarea.destroy(); },
+    container: dialog.container,
+    cleanup() {
+      renderer.keyInput.off("keypress", keyHandler);
+      dialog.cleanup();
+      textarea.destroy();
+    },
     threadId: thread.id,
     addMessage(msg: Message) { appendToConversation(msg); },
   };

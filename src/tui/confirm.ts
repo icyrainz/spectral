@@ -1,10 +1,10 @@
 import {
-  BoxRenderable,
   TextRenderable,
   type CliRenderer,
   type KeyEvent,
 } from "@opentui/core";
-import { theme } from "./theme";
+import { theme } from "./ui/theme";
+import { createDialog } from "./ui/dialog";
 
 export interface ConfirmOptions {
   renderer: CliRenderer;
@@ -14,7 +14,7 @@ export interface ConfirmOptions {
 }
 
 export interface ConfirmOverlay {
-  container: BoxRenderable;
+  container: import("@opentui/core").BoxRenderable;
   cleanup: () => void;
 }
 
@@ -26,23 +26,19 @@ export interface ConfirmOverlay {
 export function createConfirm(opts: ConfirmOptions): ConfirmOverlay {
   const { renderer, message, onConfirm, onCancel } = opts;
 
-  // Centered dialog
-  const container = new BoxRenderable(renderer, {
-    position: "absolute",
-    top: "35%",
-    left: "25%",
+  const dialog = createDialog({
+    renderer,
+    title: "Confirm",
     width: "50%",
     height: 7,
-    zIndex: 100,
-    backgroundColor: theme.base,
-    border: true,
-    borderStyle: "single",
-    borderColor: theme.borderConfirm,
-    title: " Confirm ",
-    flexDirection: "column",
-    padding: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    top: "35%",
+    left: "25%",
+    borderColor: theme.warning,
+    onDismiss: onCancel,
+    hints: [
+      { key: "y", action: "yes" },
+      { key: "n/Esc", action: "no" },
+    ],
   });
 
   const msgText = new TextRenderable(renderer, {
@@ -54,40 +50,31 @@ export function createConfirm(opts: ConfirmOptions): ConfirmOverlay {
     truncate: true,
   });
 
-  const hint = new TextRenderable(renderer, {
-    content: " [y] yes  [n/Esc] no",
-    width: "100%",
-    height: 1,
-    fg: theme.hintFg,
-    bg: theme.hintBg,
-    wrapMode: "none",
-    truncate: true,
-  });
+  dialog.content.add(msgText);
 
-  container.add(msgText);
-  container.add(hint);
-
-  // Key handler
-  const keyHandler = (key: KeyEvent) => {
+  const extraKeyHandler = (key: KeyEvent) => {
     if (key.name === "y") {
       key.preventDefault();
       key.stopPropagation();
       onConfirm();
       return;
     }
-    if (key.name === "n" || key.name === "escape") {
+    if (key.name === "n") {
       key.preventDefault();
       key.stopPropagation();
       onCancel();
       return;
     }
+    // Esc is handled by dialog's built-in handler (calls onDismiss = onCancel)
   };
 
-  renderer.keyInput.on("keypress", keyHandler);
+  renderer.keyInput.on("keypress", extraKeyHandler);
 
-  function cleanup(): void {
-    renderer.keyInput.off("keypress", keyHandler);
-  }
-
-  return { container, cleanup };
+  return {
+    container: dialog.container,
+    cleanup() {
+      dialog.cleanup();
+      renderer.keyInput.off("keypress", extraKeyHandler);
+    },
+  };
 }

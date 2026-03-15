@@ -1,13 +1,12 @@
 import {
-  BoxRenderable,
   TextRenderable,
   SelectRenderable,
   SelectRenderableEvents,
   type CliRenderer,
-  type KeyEvent,
 } from "@opentui/core";
 import type { Thread } from "../protocol/types";
-import { theme, STATUS_ICONS } from "./theme";
+import { theme, STATUS_ICONS } from "./ui/theme";
+import { createDialog } from "./ui/dialog";
 
 export interface ThreadListOptions {
   renderer: CliRenderer;
@@ -17,7 +16,7 @@ export interface ThreadListOptions {
 }
 
 export interface ThreadListOverlay {
-  container: BoxRenderable;
+  container: import("@opentui/core").BoxRenderable;
   cleanup: () => void;
 }
 
@@ -44,21 +43,22 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
     (t) => t.status === "open" || t.status === "pending"
   );
 
-  // Overlay container
-  const container = new BoxRenderable(renderer, {
-    position: "absolute",
-    top: "15%",
-    left: "15%",
+  const count = activeThreads.length;
+
+  const dialog = createDialog({
+    renderer,
+    title: `Threads (${count} active)`,
     width: "70%",
     height: "60%",
-    zIndex: 100,
-    backgroundColor: theme.base,
-    border: true,
-    borderStyle: "single",
-    borderColor: theme.borderList,
-    title: ` Threads (${activeThreads.length} active) `,
-    flexDirection: "column",
-    padding: 1,
+    top: "15%",
+    left: "15%",
+    borderColor: theme.mauve,
+    onDismiss: onCancel,
+    hints: [
+      { key: "j/k", action: "navigate" },
+      { key: "Enter", action: "jump" },
+      { key: "Esc", action: "close" },
+    ],
   });
 
   if (activeThreads.length === 0) {
@@ -66,10 +66,10 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
       content: "No active threads. Press [Esc] to close.",
       width: "100%",
       height: 1,
-      fg: theme.overlay,
+      fg: theme.textDim,
       wrapMode: "none",
     });
-    container.add(emptyMsg);
+    dialog.content.add(emptyMsg);
   } else {
     // Build select options from threads
     const selectOptions = activeThreads.map((t) => {
@@ -86,19 +86,19 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
       flexGrow: 1,
       options: selectOptions,
       selectedIndex: 0,
-      backgroundColor: theme.base,
+      backgroundColor: theme.backgroundPanel,
       textColor: theme.text,
-      focusedBackgroundColor: theme.base,
+      focusedBackgroundColor: theme.backgroundPanel,
       focusedTextColor: theme.text,
-      selectedBackgroundColor: theme.surface1,
+      selectedBackgroundColor: theme.backgroundElement,
       selectedTextColor: "#f5c2e7",
-      descriptionColor: theme.overlay,
-      selectedDescriptionColor: theme.subtext,
+      descriptionColor: theme.textDim,
+      selectedDescriptionColor: theme.textMuted,
       showDescription: true,
       wrapSelection: true,
     });
 
-    container.add(select);
+    dialog.content.add(select);
 
     // Focus the select so it handles j/k navigation
     renderer.focusRenderable(select);
@@ -112,34 +112,8 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
     });
   }
 
-  // Hint bar
-  const hint = new TextRenderable(renderer, {
-    content: " [j/k] navigate  [Enter] jump  [Esc] close",
-    width: "100%",
-    height: 1,
-    fg: theme.hintFg,
-    bg: theme.hintBg,
-    wrapMode: "none",
-    truncate: true,
-  });
-
-  container.add(hint);
-
-  // Key handler for Esc
-  const keyHandler = (key: KeyEvent) => {
-    if (key.name === "escape") {
-      key.preventDefault();
-      key.stopPropagation();
-      onCancel();
-      return;
-    }
+  return {
+    container: dialog.container,
+    cleanup: dialog.cleanup,
   };
-
-  renderer.keyInput.on("keypress", keyHandler);
-
-  function cleanup(): void {
-    renderer.keyInput.off("keypress", keyHandler);
-  }
-
-  return { container, cleanup };
 }

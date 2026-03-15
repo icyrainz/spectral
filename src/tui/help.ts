@@ -1,20 +1,19 @@
 import {
-  BoxRenderable,
-  ScrollBoxRenderable,
   TextRenderable,
   type CliRenderer,
   type KeyEvent,
 } from "@opentui/core";
-import { theme } from "./theme";
+import { theme } from "./ui/theme";
+import { createDialog } from "./ui/dialog";
 
 export interface HelpOverlay {
-  container: BoxRenderable;
+  container: import("@opentui/core").BoxRenderable;
   cleanup: () => void;
 }
 
 /**
  * Create a help overlay popup showing all keybindings.
- * Dismissable with `?` or `Esc`.
+ * Dismissable with `?`, `q`, or `Esc`.
  */
 export function createHelp(opts: {
   renderer: CliRenderer;
@@ -54,30 +53,19 @@ export function createHelp(opts: {
     "",
   ].join("\n");
 
-  // Overlay container - centered popup
-  const container = new BoxRenderable(renderer, {
-    position: "absolute",
-    top: "10%",
-    left: "20%",
+  const dialog = createDialog({
+    renderer,
+    title: "Help",
     width: "60%",
     height: Math.min(26, renderer.height - 2),
-    zIndex: 100,
-    backgroundColor: theme.base,
-    border: true,
-    borderStyle: "single",
-    borderColor: theme.borderThread,
-    title: " Help ",
-    flexDirection: "column",
-    padding: 0,
-  });
-
-  const scrollBox = new ScrollBoxRenderable(renderer, {
-    width: "100%",
-    flexGrow: 1,
-    flexShrink: 1,
-    scrollY: true,
-    scrollX: false,
-    backgroundColor: theme.base,
+    top: "10%",
+    left: "20%",
+    borderColor: theme.info,
+    onDismiss: onClose,
+    hints: [
+      { key: "q/?/Esc", action: "close" },
+      { key: "j/k", action: "scroll" },
+    ],
   });
 
   const content = new TextRenderable(renderer, {
@@ -87,24 +75,10 @@ export function createHelp(opts: {
     wrapMode: "none",
   });
 
-  scrollBox.add(content);
+  dialog.content.add(content);
 
-  const hint = new TextRenderable(renderer, {
-    content: " [q/?/Esc] close  [j/k] scroll",
-    width: "100%",
-    height: 1,
-    fg: theme.hintFg,
-    bg: theme.hintBg,
-    wrapMode: "none",
-    truncate: true,
-  });
-
-  container.add(scrollBox);
-  container.add(hint);
-
-  // Key handler
-  const keyHandler = (key: KeyEvent) => {
-    if (key.name === "escape" || key.name === "q" || key.sequence === "?") {
+  const extraKeyHandler = (key: KeyEvent) => {
+    if (key.name === "q" || key.sequence === "?") {
       key.preventDefault();
       key.stopPropagation();
       onClose();
@@ -113,24 +87,26 @@ export function createHelp(opts: {
     if (key.name === "j" || key.name === "down") {
       key.preventDefault();
       key.stopPropagation();
-      scrollBox.scrollBy(1);
+      dialog.content.scrollBy(1);
       renderer.requestRender();
       return;
     }
     if (key.name === "k" || key.name === "up") {
       key.preventDefault();
       key.stopPropagation();
-      scrollBox.scrollBy(-1);
+      dialog.content.scrollBy(-1);
       renderer.requestRender();
       return;
     }
   };
 
-  renderer.keyInput.on("keypress", keyHandler);
+  renderer.keyInput.on("keypress", extraKeyHandler);
 
-  function cleanup(): void {
-    renderer.keyInput.off("keypress", keyHandler);
-  }
-
-  return { container, cleanup };
+  return {
+    container: dialog.container,
+    cleanup() {
+      dialog.cleanup();
+      renderer.keyInput.off("keypress", extraKeyHandler);
+    },
+  };
 }
