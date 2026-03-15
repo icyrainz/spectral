@@ -29,7 +29,7 @@
 - Thread IDs use nanoid (8-char alphanumeric) — no sequential t1/t2
 - No review JSON — JSONL is the single source of truth
 - `submit` events in JSONL act as round delimiters
-- Shift-S submits for rewrite (stays in TUI), Shift-A approves (exits)
+- S submits for rewrite (stays in TUI), A approves (exits)
 - `:q` warns if unresolved threads, `:q!` force quits
 
 ## Live Protocol
