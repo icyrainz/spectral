@@ -180,9 +180,11 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
       return;
     }
     // Ctrl+D / Ctrl+U scroll the conversation (only for threads with scroll)
+    // Blur textarea first to prevent it from consuming Ctrl+U (line-clear)
     if (hasThread && scrollBox && key.ctrl && (key.name === "d" || key.name === "u")) {
       key.preventDefault();
       key.stopPropagation();
+      textarea.blur();
       const scrollAmount = Math.max(1, Math.floor(scrollBox.visibleHeight / 2));
       if (key.name === "d") {
         scrollBox.scrollTo(scrollBox.scrollTop + scrollAmount);
@@ -190,6 +192,7 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
         scrollBox.scrollTo(Math.max(0, scrollBox.scrollTop - scrollAmount));
       }
       renderer.requestRender();
+      setTimeout(() => { textarea.focus(); renderer.requestRender(); }, 0);
       return;
     }
   };
