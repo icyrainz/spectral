@@ -301,14 +301,16 @@ function createThreadView(
 
       case "d":
         if (key.ctrl) {
-          scrollBox.scrollBy({ x: 0, y: 5 });
+          const maxDown = Math.max(0, scrollBox.scrollHeight - scrollBox.scrollTop - scrollBox.visibleHeight);
+          scrollBox.scrollBy({ x: 0, y: Math.min(5, maxDown) });
           renderer.requestRender();
         }
         return;
 
       case "u":
         if (key.ctrl) {
-          scrollBox.scrollBy({ x: 0, y: -5 });
+          const maxUp = scrollBox.scrollTop;
+          scrollBox.scrollBy({ x: 0, y: -Math.min(5, maxUp) });
           renderer.requestRender();
         }
         return;
