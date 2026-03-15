@@ -38,7 +38,8 @@ if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
 }
 
 if (args.includes("--version") || args.includes("-v")) {
-  console.log("revspec 0.1.0");
+  const pkg = await Bun.file(new URL("../package.json", import.meta.url)).json();
+  console.log(`revspec ${pkg.version}`);
   process.exit(0);
 }
 
