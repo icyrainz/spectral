@@ -1,0 +1,6 @@
+{
+  "name": "revspec",
+  "version": "0.7.2",
+  "description": "Live spec review with real-time AI feedback",
+  "repository": "https://github.com/icyrainz/revspec"
+}

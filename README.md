@@ -137,15 +137,27 @@ Sends an AI reply that appears instantly in the reviewer's TUI.
 8. Repeat 3-7 until A (approve)
 ```
 
-### Claude Code skill
+### Claude Code plugin
 
-Install the `/revspec` skill for Claude Code:
+Revspec includes a Claude Code plugin with a `/revspec` skill and command.
+
+**Install via marketplace:**
 
 ```bash
-./scripts/install-skill.sh
+/plugin marketplace add icyrainz/revspec
+/plugin install revspec
 ```
 
-Then use `/revspec` in Claude Code after generating a spec.
+**Or install manually (symlinks, stays updated with repo):**
+
+```bash
+git clone https://github.com/icyrainz/revspec.git
+mkdir -p ~/.claude/skills ~/.claude/commands
+ln -sfn "$(pwd)/revspec/skills/revspec" ~/.claude/skills/revspec
+ln -sfn "$(pwd)/revspec/commands/revspec.md" ~/.claude/commands/revspec.md
+```
+
+Then use `/revspec` or `/revspec <file>` in Claude Code after generating a spec.
 
 ## Testing
 

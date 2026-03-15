@@ -24,6 +24,10 @@ bun test || { echo "Tests failed. Aborting release."; exit 1; }
 
 VERSION=$(jq -r '.version' package.json)
 
+# Sync version to plugin.json
+jq --arg v "$VERSION" '.version = $v' .claude-plugin/plugin.json > .claude-plugin/plugin.json.tmp \
+  && mv .claude-plugin/plugin.json.tmp .claude-plugin/plugin.json
+
 echo ""
 echo "  Publishing v$VERSION"
 echo ""
