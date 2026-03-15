@@ -35,7 +35,7 @@ Revspec renders markdown in-place (toggle with `m`):
 
 - **Headings** — colored and bold, `#`–`######`
 - **Inline** — bold (`**`/`__`), italic (`*`/`_`), bold-italic (`***`), strikethrough (`~~`), `code`, [links](url)
-- **Fenced code blocks** — fence markers dimmed, body in green
+- **Fenced code blocks** — ` ``` ` markers dimmed, body in green
 - **Tables** — box-drawing borders, header row bolded, auto-column-widths
 - **Lists** — unordered (`•`), ordered, task lists (`☐`/`☑`)
 - **Blockquotes** — bar gutter, italicized text
@@ -49,11 +49,10 @@ Revspec renders markdown in-place (toggle with `m`):
 | `j/k` | Move cursor down/up |
 | `gg` / `G` | Go to top / bottom |
 | `Ctrl+D/U` | Half page down/up |
-| `m` | Toggle markdown / line mode |
 | `c` | Open thread / comment on line |
 | `r` | Resolve thread (toggle) |
 | `R` | Resolve all pending |
-| `dd` | Delete draft comment (double-tap) |
+| `dd` | Delete thread (with confirm) |
 | `/` | Search |
 | `n/N` | Next/prev search match |
 | `]t/[t` | Next/prev thread |
@@ -62,8 +61,8 @@ Revspec renders markdown in-place (toggle with `m`):
 | `a` | Approve spec |
 | `:w` | Merge changes to review JSON |
 | `:wq` | Merge and quit |
-| `:q` | Quit (only if merged) |
-| `:q!` | Quit without merging |
+| `:q` | Quit (blocks if unsaved) |
+| `:q!` / `:qw` | Quit without merging / Save and quit |
 | `?` | Help |
 
 ### Thread popup
@@ -124,6 +123,16 @@ Install the `/revspec` skill for Claude Code:
 ```
 
 Then use `/revspec` in Claude Code after generating a spec.
+
+## Testing
+
+```bash
+bun test                    # Run all tests (~70s)
+bun test test/e2e           # E2E snapshot tests only (~66s)
+bun test --update-snapshots # Regenerate snapshots after UI changes
+```
+
+E2E tests use `bun-pty` to spawn revspec in a pseudo-terminal (80x24), send keystrokes, capture plain-text screen output, and compare against saved snapshots. Covers: navigation, search, overlays (help, comment, thread list, confirm), thread creation/resolve/delete, command mode, and context-sensitive hints.
 
 ## Protocol
 

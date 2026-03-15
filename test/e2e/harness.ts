@@ -1,5 +1,6 @@
 import { spawn, type IPty } from "bun-pty";
-import { resolve } from "path";
+import { resolve, dirname, basename, join } from "path";
+import { unlinkSync, existsSync } from "fs";
 
 const CLI = resolve(import.meta.dir, "../../bin/revspec.ts");
 
@@ -18,7 +19,11 @@ export interface TuiHarness {
   sendKeys: (keys: string) => void;
   wait: (ms?: number) => Promise<void>;
   capture: () => string;
+  /** Check if captured output contains text (plain text, ANSI stripped) */
+  contains: (text: string) => boolean;
   quit: () => Promise<void>;
+  /** Clean up review files created during the test */
+  cleanReviewFiles: () => void;
 }
 
 export async function createHarness(specFile: string, opts?: { cols?: number; rows?: number }): Promise<TuiHarness> {
@@ -63,18 +68,38 @@ export async function createHarness(specFile: string, opts?: { cols?: number; ro
     return screen.join("\n").trimEnd();
   }
 
+  function contains(text: string): boolean {
+    return capture().includes(text);
+  }
+
+  function cleanReviewFiles(): void {
+    const dir = dirname(specPath);
+    const base = basename(specPath, ".md");
+    const files = [
+      join(dir, `${base}.review.json`),
+      join(dir, `${base}.review.live.jsonl`),
+      join(dir, `${base}.review.live.offset`),
+      join(dir, `${base}.review.live.lock`),
+      join(dir, `${base}.review.draft.json`),
+    ];
+    for (const f of files) {
+      try { if (existsSync(f)) unlinkSync(f); } catch {}
+    }
+  }
+
   async function quit(): Promise<void> {
     sendKeys("\x1b"); // Esc first to clear any state
     await wait(100);
-    sendKeys("q");
+    sendKeys(":q!\n");
     await wait(500);
     try {
       pty.kill();
     } catch {}
+    cleanReviewFiles();
   }
 
   // Wait for initial render
   await wait(800);
 
-  return { sendKeys, wait, capture, quit };
+  return { sendKeys, wait, capture, contains, quit, cleanReviewFiles };
 }
