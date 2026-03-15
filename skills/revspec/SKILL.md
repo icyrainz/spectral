@@ -53,7 +53,21 @@ echo $TMUX
 tmux split-window -t "$TMUX_PANE" -v "revspec <spec-file>"
 ```
 
-**If no tmux:**
+**If no tmux, but on macOS:** detect the terminal and open a new window:
+
+```bash
+echo $TERM_PROGRAM
+```
+
+| `$TERM_PROGRAM` | Launch command |
+|---|---|
+| `Apple_Terminal` | `osascript -e 'tell application "Terminal" to do script "revspec <spec-file>"'` |
+| `iTerm.app` | `osascript -e 'tell application "iTerm2" to create window with default profile command "revspec <spec-file>"'` |
+| `WezTerm` | `wezterm start -- revspec <spec-file>` |
+| `ghostty` | `ghostty -e revspec <spec-file>` |
+| Other/unknown | Fall back to `osascript` with Terminal.app |
+
+**Otherwise (not macOS):**
 Tell the user: "Please run in another terminal: `revspec <spec-file>`"
 
 ## Step 3: Run the Watch/Reply Loop

@@ -1,8 +1,8 @@
 export const theme = {
   // Surfaces
-  base: "#1e1e2e",
+  base: undefined,
   backgroundPanel: "#313244",
-  backgroundElement: "#45475a",
+  backgroundElement: undefined,
 
   // Text hierarchy
   text: "#cdd6f4",

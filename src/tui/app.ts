@@ -626,6 +626,11 @@ export async function runTui(
           break;
         }
         case "submit":
+          if (state.threads.length === 0) {
+            setBottomBarMessage(bottomBar, " No threads to submit.");
+            renderer.requestRender();
+            break;
+          }
           unresolvedGate(() => {
             appendEvent(jsonlPath, { type: "submit", author: "reviewer", ts: Date.now() });
 
