@@ -26,8 +26,8 @@ const MAX_PREVIEW_LENGTH = 50;
 
 function previewText(thread: Thread): string {
   if (thread.messages.length === 0) return "(empty)";
-  const last = thread.messages[0];
-  const text = last.text.replace(/\n/g, " ");
+  const first = thread.messages[0];
+  const text = first.text.replace(/\n/g, " ");
   if (text.length <= MAX_PREVIEW_LENGTH) return text;
   return text.slice(0, MAX_PREVIEW_LENGTH - 1) + "\u2026";
 }

@@ -261,8 +261,6 @@ function formatWatchOutput(
   // Group events by type
   const newCommentThreadIds: string[] = [];
   const replyThreadIds: string[] = [];
-  const resolvedThreadIds: string[] = [];
-  const deletedThreadIds: string[] = [];
 
   const seen = new Set<string>();
 
@@ -276,14 +274,6 @@ function formatWatchOutput(
     } else if (event.type === "reply") {
       if (!replyThreadIds.includes(tid)) {
         replyThreadIds.push(tid);
-      }
-    } else if (event.type === "resolve") {
-      if (!resolvedThreadIds.includes(tid)) {
-        resolvedThreadIds.push(tid);
-      }
-    } else if (event.type === "delete") {
-      if (!deletedThreadIds.includes(tid)) {
-        deletedThreadIds.push(tid);
       }
     }
   }
@@ -339,31 +329,6 @@ function formatWatchOutput(
       lines.push(
         `  To reply: revspec reply ${specPath} ${tid} "<your reply>"`
       );
-      lines.push("");
-    }
-  }
-
-  // Resolved threads
-  if (resolvedThreadIds.length > 0) {
-    lines.push("=== Resolved ===");
-    for (const tid of resolvedThreadIds) {
-      const thread = threadsById.get(tid);
-      if (!thread) continue;
-      lines.push(`Thread: ${tid} (line ${thread.line}) — resolved`);
-      lines.push("");
-    }
-  }
-
-  // Deleted threads
-  if (deletedThreadIds.length > 0) {
-    lines.push("=== Deleted ===");
-    for (const tid of deletedThreadIds) {
-      const thread = threadsById.get(tid);
-      if (thread) {
-        lines.push(`Thread: ${tid} (line ${thread.line}) — deleted`);
-      } else {
-        lines.push(`Thread: ${tid} — deleted`);
-      }
       lines.push("");
     }
   }

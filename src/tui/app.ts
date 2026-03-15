@@ -124,6 +124,9 @@ export async function runTui(
   // Command mode state
   let commandBuffer: string | null = null;
 
+  // Active spec poll interval (for submit spinner leak prevention)
+  let activeSpecPoll: ReturnType<typeof setInterval> | null = null;
+
   // Overlay state — when an overlay is active, normal keybindings are blocked.
   // The overlay's own key handlers manage its lifecycle.
   type ActiveOverlay = {
@@ -206,6 +209,9 @@ export async function runTui(
       refreshPager();
       return "stay";
     }
+    setBottomBarMessage(bottomBar, ` Unknown command: ${cmd}`);
+    renderer.requestRender();
+    setTimeout(() => { refreshPager(); }, 1500);
     return "stay";
   }
 
@@ -403,6 +409,10 @@ export async function runTui(
       // (e.g., TextareaRenderable for typing in comment input).
       if (activeOverlay) {
         if (key.ctrl && key.name === "c") {
+          if (activeSpecPoll) {
+            clearInterval(activeSpecPoll);
+            activeSpecPoll = null;
+          }
           dismissOverlay();
           return;
         }
@@ -569,6 +579,10 @@ export async function runTui(
             setBottomBarMessage(bottomBar, msg);
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
+          } else {
+            setBottomBarMessage(bottomBar, " No thread on this line");
+            renderer.requestRender();
+            setTimeout(() => { refreshPager(); }, 1500);
           }
           break;
         }
@@ -616,11 +630,13 @@ export async function runTui(
               renderer,
               message: "Waiting for agent to update spec...",
               onCancel: () => {
-                clearInterval(specPollInterval);
+                clearInterval(activeSpecPoll!);
+                activeSpecPoll = null;
                 dismissOverlay();
               },
               onTimeout: () => {
-                clearInterval(specPollInterval);
+                clearInterval(activeSpecPoll!);
+                activeSpecPoll = null;
                 dismissOverlay();
                 setBottomBarMessage(bottomBar, " \u26a0 Agent did not update spec. Press S to retry.");
                 renderer.requestRender();
@@ -629,11 +645,12 @@ export async function runTui(
             });
             showOverlay(spinnerOverlay);
 
-            const specPollInterval = setInterval(() => {
+            activeSpecPoll = setInterval(() => {
               try {
                 const currentMtime = statSync(specFile).mtimeMs;
                 if (currentMtime !== specMtime) {
-                  clearInterval(specPollInterval);
+                  clearInterval(activeSpecPoll!);
+                  activeSpecPoll = null;
                   const newContent = readFileSync(specFile, "utf8");
                   state.reset(newContent.split("\n"));
                   specMtime = currentMtime;
@@ -666,19 +683,27 @@ export async function runTui(
           });
           break;
         case "next-thread": {
-          const next = state.nextActiveThread();
+          const next = state.nextThread();
           if (next !== null) {
             state.cursorLine = next;
             ensureCursorVisible();
+          } else if (state.threads.length === 0) {
+            setBottomBarMessage(bottomBar, " No threads");
+            renderer.requestRender();
+            setTimeout(() => { refreshPager(); }, 1500);
           }
           refreshPager();
           break;
         }
         case "prev-thread": {
-          const prev = state.prevActiveThread();
+          const prev = state.prevThread();
           if (prev !== null) {
             state.cursorLine = prev;
             ensureCursorVisible();
+          } else if (state.threads.length === 0) {
+            setBottomBarMessage(bottomBar, " No threads");
+            renderer.requestRender();
+            setTimeout(() => { refreshPager(); }, 1500);
           }
           refreshPager();
           break;
@@ -688,6 +713,10 @@ export async function runTui(
           if (nextLine !== null) {
             state.cursorLine = nextLine;
             ensureCursorVisible();
+          } else {
+            setBottomBarMessage(bottomBar, " No unread replies");
+            renderer.requestRender();
+            setTimeout(() => { refreshPager(); }, 1500);
           }
           refreshPager();
           break;
@@ -697,6 +726,10 @@ export async function runTui(
           if (prevLine !== null) {
             state.cursorLine = prevLine;
             ensureCursorVisible();
+          } else {
+            setBottomBarMessage(bottomBar, " No unread replies");
+            renderer.requestRender();
+            setTimeout(() => { refreshPager(); }, 1500);
           }
           refreshPager();
           break;

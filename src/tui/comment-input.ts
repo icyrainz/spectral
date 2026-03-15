@@ -248,9 +248,13 @@ function createThreadView(
     renderer.requestRender();
   }
 
-  // Start in insert mode, scroll conversation to bottom
+  // Start in appropriate mode
   setTimeout(() => {
-    textarea.focus();
+    if (thread.messages.length > 0) {
+      enterNormal(); // Existing thread: let user read conversation first
+    } else {
+      textarea.focus(); // New thread: start typing immediately
+    }
     scrollBox.scrollTo(scrollBox.scrollHeight);
     renderer.requestRender();
     setTimeout(() => {

@@ -12,8 +12,8 @@ export const PAGER_HINTS = {
   navigate: { key: "j/k", action: "navigate" } as Hint,
   comment: { key: "c", action: "comment" } as Hint,
   resolve: { key: "r", action: "resolve" } as Hint,
-  submit: { key: "Shift-S", action: "submit" } as Hint,
-  approve: { key: "Shift-A", action: "approve" } as Hint,
+  submit: { key: "S", action: "submit" } as Hint,
+  approve: { key: "A", action: "approve" } as Hint,
   help: { key: "?", action: "help" } as Hint,
 };
 

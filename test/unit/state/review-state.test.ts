@@ -131,14 +131,14 @@ describe("ReviewState", () => {
     });
   });
 
-  describe("nextActiveThread", () => {
+  describe("nextThread", () => {
     it("returns next open/pending thread line after cursor", () => {
       const state = new ReviewState(SPEC, [
         makeThread("t1", 2, "open"),
         makeThread("t2", 4, "pending"),
       ]);
       state.cursorLine = 3;
-      expect(state.nextActiveThread()).toBe(4);
+      expect(state.nextThread()).toBe(4);
     });
 
     it("wraps around to first active thread when none after cursor", () => {
@@ -147,7 +147,7 @@ describe("ReviewState", () => {
         makeThread("t2", 3, "pending"),
       ]);
       state.cursorLine = 4;
-      expect(state.nextActiveThread()).toBe(1);
+      expect(state.nextThread()).toBe(1);
     });
 
     it("includes resolved threads", () => {
@@ -156,23 +156,23 @@ describe("ReviewState", () => {
         makeThread("t2", 4, "open"),
       ]);
       state.cursorLine = 1;
-      expect(state.nextActiveThread()).toBe(2);
+      expect(state.nextThread()).toBe(2);
     });
 
     it("returns null when no threads", () => {
       const state = new ReviewState(SPEC, []);
-      expect(state.nextActiveThread()).toBeNull();
+      expect(state.nextThread()).toBeNull();
     });
   });
 
-  describe("prevActiveThread", () => {
+  describe("prevThread", () => {
     it("returns previous thread line before cursor", () => {
       const state = new ReviewState(SPEC, [
         makeThread("t1", 1, "open"),
         makeThread("t2", 3, "pending"),
       ]);
       state.cursorLine = 4;
-      expect(state.prevActiveThread()).toBe(3);
+      expect(state.prevThread()).toBe(3);
     });
 
     it("wraps around to last thread when none before cursor", () => {
@@ -181,7 +181,7 @@ describe("ReviewState", () => {
         makeThread("t2", 4, "pending"),
       ]);
       state.cursorLine = 1;
-      expect(state.prevActiveThread()).toBe(4);
+      expect(state.prevThread()).toBe(4);
     });
 
     it("includes resolved threads", () => {
@@ -190,12 +190,12 @@ describe("ReviewState", () => {
         makeThread("t2", 3, "resolved"),
       ]);
       state.cursorLine = 5;
-      expect(state.prevActiveThread()).toBe(3);
+      expect(state.prevThread()).toBe(3);
     });
 
     it("returns null when no threads", () => {
       const state = new ReviewState(SPEC, []);
-      expect(state.prevActiveThread()).toBeNull();
+      expect(state.prevThread()).toBeNull();
     });
   });
 

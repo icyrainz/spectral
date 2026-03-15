@@ -89,7 +89,7 @@ export class ReviewState {
     return this.threads.find((t) => t.line === line) ?? null;
   }
 
-  nextActiveThread(): number | null {
+  nextThread(): number | null {
     if (this.threads.length === 0) return null;
 
     const after = this.threads.filter((t) => t.line > this.cursorLine);
@@ -101,7 +101,7 @@ export class ReviewState {
     return this.threads.reduce((min, t) => (t.line < min.line ? t : min)).line;
   }
 
-  prevActiveThread(): number | null {
+  prevThread(): number | null {
     if (this.threads.length === 0) return null;
 
     const before = this.threads.filter((t) => t.line < this.cursorLine);

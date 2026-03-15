@@ -105,7 +105,7 @@ export function createHelp(opts: {
   ]);
 
   addHelpSection(dialog.content, renderer, "Commands", [
-    "  :q        Quit (warns if unresolved)",
+    "  :q/:wq    Quit (warns if unresolved)",
     "  :q!       Force quit",
     "  :{N}      Jump to line N",
     "  Ctrl+C    Force quit",

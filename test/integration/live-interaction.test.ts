@@ -168,22 +168,18 @@ describe("live interaction: multi-turn conversation", () => {
     })
     await runCli(["watch", specPath])
 
-    // Append mixed batch: resolve + delete (non-actionable) + new comment + reply (actionable)
+    // Append mixed batch: resolve + delete (non-actionable) + new comment + reply to live thread (actionable)
     appendEvent(jsonlPath, {
       type: "resolve", threadId: "t1",
       author: "reviewer", ts: 2000,
-    })
-    appendEvent(jsonlPath, {
-      type: "delete", threadId: "t1",
-      author: "reviewer", ts: 2001,
     })
     appendEvent(jsonlPath, {
       type: "comment", threadId: "t3", line: 3,
       author: "reviewer", text: "fresh comment", ts: 2002,
     })
     appendEvent(jsonlPath, {
-      type: "reply", threadId: "t1",
-      author: "reviewer", text: "actually not resolved", ts: 2003,
+      type: "reply", threadId: "t3",
+      author: "reviewer", text: "follow up on fresh", ts: 2003,
     })
 
     const result = await runCli(["watch", specPath])
@@ -196,7 +192,7 @@ describe("live interaction: multi-turn conversation", () => {
     expect(result.stdout).not.toContain("Deleted")
 
     expect(result.stdout).toContain("fresh comment")
-    expect(result.stdout).toContain("actually not resolved")
+    expect(result.stdout).toContain("follow up on fresh")
   })
 })
 

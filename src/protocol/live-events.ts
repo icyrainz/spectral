@@ -188,20 +188,7 @@ export function replayEventsToThreads(events: LiveEvent[]): Thread[] {
 
       case "delete": {
         if (!event.threadId) break;
-        const thread = threadsMap.get(event.threadId);
-        if (!thread) break;
-        // Remove the last reviewer message
-        for (let i = thread.messages.length - 1; i >= 0; i--) {
-          if (thread.messages[i].author === "reviewer") {
-            thread.messages.splice(i, 1);
-            break;
-          }
-        }
-        // Re-derive status from the new last message
-        const lastMsg = thread.messages[thread.messages.length - 1];
-        if (lastMsg) {
-          thread.status = lastMsg.author === "owner" ? "pending" : "open";
-        }
+        threadsMap.delete(event.threadId);
         break;
       }
 
