@@ -12,12 +12,6 @@ import { parseMarkdownLine, addSegments, collectTable, renderTableBorder, render
 
 const MAX_HINT_LENGTH = 40;
 
-function padLineNum(n: number): string {
-  const s = String(n);
-  if (s.length >= 4) return s;
-  return " ".repeat(4 - s.length) + s;
-}
-
 function threadHint(thread: Thread): string {
   if (thread.messages.length === 0) return "";
   const last = thread.messages[thread.messages.length - 1];
@@ -32,6 +26,7 @@ function threadHint(thread: Thread): string {
  * Build plain text line-mode content (for testing / plain fallback).
  */
 export function buildPagerContent(state: ReviewState, searchQuery?: string | null, unreadThreadIds?: ReadonlySet<string>): string {
+  const numWidth = Math.max(String(state.lineCount).length, 3);
   const lines: string[] = [];
   for (let i = 0; i < state.specLines.length; i++) {
     const lineNum = i + 1;
@@ -54,7 +49,9 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
         indicator = "\u258c";
       }
     }
-    lines.push(`${prefix}${indicator}${padLineNum(lineNum)}  ${specText}`);
+    const numStr = String(lineNum);
+    const padded = " ".repeat(numWidth - numStr.length) + numStr;
+    lines.push(`${prefix}${indicator}${padded}  ${specText}`);
   }
   return lines.join("\n");
 }
@@ -68,6 +65,11 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
  */
 export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, searchQuery?: string | null, unreadThreadIds?: ReadonlySet<string>): void {
   lineNode.clear();
+
+  // Calculate dynamic gutter width based on total line count
+  const numWidth = Math.max(String(state.lineCount).length, 3);
+  // Blank gutter for table borders: prefix(1) + indicator(1) + numWidth + spaces(2)
+  const gutterBlank = " ".repeat(2 + numWidth + 2);
 
   // Pre-scan for table blocks so we can calculate column widths
   const tableBlocks = new Map<number, TableBlock>();
@@ -116,7 +118,7 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
 
     // Top border before first table row (on its own visual line with blank gutter)
     if (isTable && relIdx === 0) {
-      lineNode.add(TextNodeRenderable.fromString("        ", { fg: theme.textDim }));
+      lineNode.add(TextNodeRenderable.fromString(gutterBlank, { fg: theme.textDim }));
       renderTableBorder(lineNode, tableBlock.colWidths, "top");
       lineNode.add(TextNodeRenderable.fromString("\n", {}));
     }
@@ -130,8 +132,10 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
       indicator,
       { fg: indicatorColor, bg: isCursor ? theme.backgroundElement : undefined }
     ));
+    const numStr = String(lineNum);
+    const paddedNum = " ".repeat(numWidth - numStr.length) + numStr;
     lineNode.add(TextNodeRenderable.fromString(
-      `${padLineNum(lineNum)}  `,
+      `${paddedNum}  `,
       { fg: theme.textDim, attributes: TextAttributes.DIM, bg: isCursor ? theme.backgroundElement : undefined }
     ));
 
@@ -163,7 +167,7 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
       // Bottom border after last row (on its own visual line with blank gutter)
       if (relIdx === tableBlock.lines.length - 1) {
         lineNode.add(TextNodeRenderable.fromString("\n", {}));
-        lineNode.add(TextNodeRenderable.fromString("        ", { fg: theme.textDim }));
+        lineNode.add(TextNodeRenderable.fromString(gutterBlank, { fg: theme.textDim }));
         renderTableBorder(lineNode, tableBlock.colWidths, "bottom");
       }
     } else if (searchQuery) {

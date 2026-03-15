@@ -2,7 +2,7 @@ import { BoxRenderable, TextRenderable, TextNodeRenderable, TextAttributes, type
 import type { ReviewState } from "../state/review-state";
 import { basename } from "path";
 import { theme } from "./ui/theme";
-import { buildHints } from "./ui/hint-bar";
+import { buildHints, type Hint } from "./ui/hint-bar";
 
 export interface TopBarComponents {
   box: BoxRenderable;
@@ -67,20 +67,23 @@ export function buildTopBar(
 /**
  * Build the bottom bar with styled TextNodes.
  */
-export function buildBottomBar(bar: BottomBarComponents, commandBuffer: string | null): void {
+export function buildBottomBar(bar: BottomBarComponents, commandBuffer: string | null, hasThread?: boolean): void {
   const t = bar.text;
   t.clear();
   if (commandBuffer !== null) {
     t.add(TextNodeRenderable.fromString(` :${commandBuffer}`, { fg: theme.text }));
     return;
   }
-  const hints = [
+  const hints: Hint[] = [
     { key: "j/k", action: "move" },
     { key: "c", action: "comment" },
-    { key: "r", action: "resolve" },
-    { key: "/", action: "search" },
-    { key: "?", action: "help" },
   ];
+  if (hasThread) {
+    hints.push({ key: "r", action: "resolve" });
+    hints.push({ key: "dd", action: "delete" });
+  }
+  hints.push({ key: "/", action: "search" });
+  hints.push({ key: "?", action: "help" });
   buildHints(t, hints);
 }
 

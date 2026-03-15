@@ -129,7 +129,8 @@ export async function runTui(
 
     buildPagerNodes(pager.lineNode, state, searchQuery, state.unreadThreadIds);
     buildTopBar(topBar, specFile, state, state.unreadCount(), specMtimeChanged);
-    buildBottomBar(bottomBar, commandBuffer);
+    const hasThread = !!state.threadAtLine(state.cursorLine);
+    buildBottomBar(bottomBar, commandBuffer, hasThread);
     renderer.requestRender();
   }
 
@@ -611,7 +612,7 @@ export async function runTui(
           if (state.canApprove()) {
             const confirmOverlay = createConfirm({
               renderer,
-              message: "Approve spec and proceed to implementation? [y/n]",
+              message: "Approve spec and proceed to implementation?",
               onConfirm: () => {
                 dismissOverlay();
                 appendEvent(jsonlPath, { type: "approve", author: "reviewer", ts: Date.now() });

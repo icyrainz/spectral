@@ -173,6 +173,9 @@ function createThreadView(
     hints: insertHints,
   });
 
+  // Set initial title to reflect starting mode (insert)
+  dialog.container.title = ` ${title} — INSERT `;
+
   // --- Scrollable conversation history ---
   const scrollBox = dialog.content;
 
@@ -235,6 +238,7 @@ function createThreadView(
     mode = "insert";
     textarea.focus();
     dialog.setHints(insertHints);
+    dialog.container.title = ` ${title} — INSERT `;
     renderer.requestRender();
   }
 
@@ -242,6 +246,7 @@ function createThreadView(
     mode = "normal";
     textarea.blur();
     dialog.setHints(normalHints);
+    dialog.container.title = ` ${title} — NORMAL `;
     renderer.requestRender();
   }
 

@@ -53,6 +53,7 @@ export function createKeybindRegistry(bindings: KeyBinding[], timeout = 500): Ke
 
   function match(key: KeyEvent): string | null {
     const keyStr = keyToString(key);
+    let skipSequenceCheck = false;
 
     if (sequence) {
       const seq = sequence.first + keyStr;
@@ -61,6 +62,7 @@ export function createKeybindRegistry(bindings: KeyBinding[], timeout = 500): Ke
 
       const action = sequenceBindings.get(seq);
       if (action) return action;
+      skipSequenceCheck = true; // Don't start a new sequence with the failed second key
     }
 
     // Check ctrl variants first
@@ -69,8 +71,8 @@ export function createKeybindRegistry(bindings: KeyBinding[], timeout = 500): Ke
       if (action) return action;
     }
 
-    // Check if this starts a sequence (but not if ctrl is held)
-    if (!key.ctrl && sequenceStarters.has(keyStr)) {
+    // Check if this starts a sequence (but not if ctrl is held, and not if from failed sequence)
+    if (!key.ctrl && !skipSequenceCheck && sequenceStarters.has(keyStr)) {
       sequence = {
         first: keyStr,
         timer: setTimeout(() => { sequence = null; }, timeout),

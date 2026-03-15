@@ -59,7 +59,7 @@ export function parseInlineMarkdown(text: string): StyledSegment[] {
       segments.push({ text: match[8], fg: theme.blue, attributes: TextAttributes.UNDERLINE });
     } else if (match[9] !== undefined) {
       // `code`
-      segments.push({ text: match[9], fg: theme.green });
+      segments.push({ text: match[9], fg: theme.mauve });
     }
     pos = match.index + match[0].length;
   }
