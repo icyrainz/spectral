@@ -73,7 +73,7 @@ docs/specs/feature-design.review.live.jsonl    # live chat log (append-only audi
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `type` | string | yes | `comment`, `reply`, `resolve`, `unresolve`, `approve`, `delete`, `round` |
-| `threadId` | string | yes (except `approve`) | Thread identifier (e.g., `t1`) |
+| `threadId` | string | yes (except `approve` and `round`) | Thread identifier (e.g., `t1`) |
 | `line` | integer | only for `comment` | 1-indexed line anchor in spec |
 | `author` | string | yes | `human` or `ai` |
 | `text` | string | only for `comment`/`reply` | Message content |
