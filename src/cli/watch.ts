@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, unlinkSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, unlinkSync, renameSync } from "fs";
 import { watch as fsWatch } from "fs";
 import { resolve, dirname, basename, join } from "path";
 import {
@@ -7,6 +7,13 @@ import {
 } from "../protocol/live-events";
 import type { Thread } from "../protocol/types";
 import { replayEventsToThreads } from "../protocol/live-events";
+
+/** Atomic write: write to .tmp then rename (POSIX rename is atomic) */
+function atomicWriteFileSync(filePath: string, content: string): void {
+  const tmpPath = filePath + ".tmp";
+  writeFileSync(tmpPath, content, "utf8");
+  renameSync(tmpPath, filePath);
+}
 
 export async function runWatch(specFile: string): Promise<void> {
   // Resolve and validate spec path
@@ -22,7 +29,6 @@ export async function runWatch(specFile: string): Promise<void> {
   const jsonlPath = join(dir, `${base}.review.jsonl`);
   const offsetPath = join(dir, `${base}.review.offset`);
   const lockPath = join(dir, `${base}.review.lock`);
-  const reviewPath = join(dir, `${base}.review.json`);
 
   // Handle lock file
   if (existsSync(lockPath)) {
@@ -46,13 +52,20 @@ export async function runWatch(specFile: string): Promise<void> {
   // Create/overwrite lock with current PID
   writeFileSync(lockPath, String(process.pid), "utf8");
 
-  // Read offset from offset file (or 0)
+  // Read offset and last processed submit timestamp from offset file
   let offset = 0;
+  let lastSubmitTs = 0;
   if (existsSync(offsetPath)) {
-    const raw = readFileSync(offsetPath, "utf8").trim();
-    const parsed = parseInt(raw, 10);
+    const lines = readFileSync(offsetPath, "utf8").trim().split("\n");
+    const parsed = parseInt(lines[0], 10);
     if (!isNaN(parsed)) {
       offset = parsed;
+    }
+    if (lines.length > 1) {
+      const parsedTs = parseInt(lines[1], 10);
+      if (!isNaN(parsedTs)) {
+        lastSubmitTs = parsedTs;
+      }
     }
   }
 
@@ -66,11 +79,11 @@ export async function runWatch(specFile: string): Promise<void> {
     const result = processNewEvents(
       jsonlPath,
       offsetPath,
-      lockPath,
-      reviewPath,
       specPath,
       specLines,
-      offset
+      offset,
+      lastSubmitTs,
+      true // always check recovery in non-blocking (one-shot)
     );
     if (result.approved) {
       console.log("Review approved.");
@@ -83,20 +96,22 @@ export async function runWatch(specFile: string): Promise<void> {
 
   // Blocking mode: watch for JSONL changes
   let processing = false;
+  let firstPoll = true; // only run crash recovery on first poll
 
-  const handleChange = async () => {
+  const handleChange = () => {
     if (processing) return;
     processing = true;
     try {
       const result = processNewEvents(
         jsonlPath,
         offsetPath,
-        lockPath,
-        reviewPath,
         specPath,
         specLines,
-        offset
+        offset,
+        lastSubmitTs,
+        firstPoll
       );
+      firstPoll = false;
 
       if (result.approved) {
         console.log("Review approved.");
@@ -110,8 +125,15 @@ export async function runWatch(specFile: string): Promise<void> {
         process.exit(0);
       }
 
-      // Update offset for next call
+      // Update state for next poll iteration
       offset = result.newOffset;
+      if (existsSync(offsetPath)) {
+        const lines = readFileSync(offsetPath, "utf8").trim().split("\n");
+        if (lines.length > 1) {
+          const parsedTs = parseInt(lines[1], 10);
+          if (!isNaN(parsedTs)) lastSubmitTs = parsedTs;
+        }
+      }
     } finally {
       processing = false;
     }
@@ -168,11 +190,11 @@ interface ProcessResult {
 function processNewEvents(
   jsonlPath: string,
   offsetPath: string,
-  lockPath: string,
-  reviewPath: string,
   specPath: string,
   specLines: string[],
-  offset: number
+  offset: number,
+  lastSubmitTs: number,
+  checkRecovery: boolean
 ): ProcessResult {
   if (!existsSync(jsonlPath)) {
     return { approved: false, output: "", newOffset: offset };
@@ -180,11 +202,17 @@ function processNewEvents(
 
   const { events, newOffset } = readEventsFromOffset(jsonlPath, offset);
 
-  // Recovery: detect pending unprocessed submit
-  if (events.length === 0) {
+  // Recovery: detect pending unprocessed submit (only on first poll to avoid
+  // re-reading the entire JSONL every 500ms in blocking mode)
+  if (events.length === 0 && checkRecovery) {
     const { events: allEvents } = readEventsFromOffset(jsonlPath, 0);
     const lastSubmitIdx = allEvents.findLastIndex(e => e.type === "submit");
     if (lastSubmitIdx >= 0) {
+      const lastSubmitEvent = allEvents[lastSubmitIdx];
+      // If we already output this submit, skip (not a crash)
+      if (lastSubmitEvent.ts === lastSubmitTs) {
+        return { approved: false, output: "", newOffset: offset };
+      }
       const afterSubmit = allEvents.slice(lastSubmitIdx + 1);
       const hasNewActivity = afterSubmit.some(e =>
         e.type === "comment" || e.type === "reply" ||
@@ -195,14 +223,20 @@ function processNewEvents(
         const currentRoundThreads = replayEventsToThreads(allEvents.slice(roundStart));
         const resolved = currentRoundThreads.filter(t => t.status === "resolved");
         const output = formatSubmitOutput(resolved, specPath);
+        // Record this submit's ts so we don't re-output it
+        atomicWriteFileSync(offsetPath, `${offset}\n${lastSubmitEvent.ts}`);
         return { approved: false, output, newOffset: offset };
       }
     }
     return { approved: false, output: "", newOffset: offset };
   }
 
+  if (events.length === 0) {
+    return { approved: false, output: "", newOffset: offset };
+  }
+
   // Save new offset
-  writeFileSync(offsetPath, String(newOffset), "utf8");
+  atomicWriteFileSync(offsetPath, String(newOffset));
 
   // Check for approve event
   const hasApprove = events.some((e) => e.type === "approve");
@@ -211,13 +245,15 @@ function processNewEvents(
   }
 
   // Check for submit event — priority over session-end
-  const hasSubmit = events.some((e) => e.type === "submit");
-  if (hasSubmit) {
+  const submitEvent = events.findLast((e) => e.type === "submit");
+  if (submitEvent) {
     const { events: allEvents } = readEventsFromOffset(jsonlPath, 0);
     const roundStart = findCurrentRoundStartIndex(allEvents);
     const currentRoundThreads = replayEventsToThreads(allEvents.slice(roundStart));
     const resolved = currentRoundThreads.filter(t => t.status === "resolved");
     const output = formatSubmitOutput(resolved, specPath);
+    // Record submit ts for crash recovery dedup
+    atomicWriteFileSync(offsetPath, `${newOffset}\n${submitEvent.ts}`);
     return { approved: false, output, newOffset };
   }
 

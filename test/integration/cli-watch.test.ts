@@ -231,7 +231,7 @@ describe("revspec watch", () => {
     expect(result.stdout).toContain("will clarify");
   });
 
-  it("recovers pending submit on restart", async () => {
+  it("does not re-output submit after it was already processed", async () => {
     tmpDir = setupTempDir();
     const { specPath, jsonlPath } = createSpecWithJsonl(tmpDir);
 
@@ -239,14 +239,53 @@ describe("revspec watch", () => {
     appendEvent(jsonlPath, { type: "resolve", threadId: "x1", author: "reviewer", ts: 2 });
     appendEvent(jsonlPath, { type: "submit", author: "reviewer", ts: 3 });
 
-    // First watch — consumes the submit
-    await runCli(["watch", specPath]);
+    // First watch — consumes the submit, records submit_ts
+    const result1 = await runCli(["watch", specPath]);
+    expect(result1.stdout).toContain("Submit: Rewrite Requested");
 
-    // Second watch — should re-output the pending submit
+    // Second watch — should NOT re-output (submit_ts matches)
+    const result2 = await runCli(["watch", specPath]);
+    expect(result2.stdout.trim()).toBe("");
+  });
+
+  it("recovers pending submit when submit_ts not recorded (crash before recording)", async () => {
+    tmpDir = setupTempDir();
+    const { specPath, jsonlPath } = createSpecWithJsonl(tmpDir);
+    const offsetPath = join(tmpDir, "spec.review.offset");
+
+    appendEvent(jsonlPath, { type: "comment", threadId: "x1", line: 3, author: "reviewer", text: "fix this", ts: 1 });
+    appendEvent(jsonlPath, { type: "resolve", threadId: "x1", author: "reviewer", ts: 2 });
+    appendEvent(jsonlPath, { type: "submit", author: "reviewer", ts: 3 });
+
+    // Simulate crash: offset is at end of file but no submit_ts recorded
+    const { newOffset } = readEventsFromOffset(jsonlPath, 0);
+    writeFileSync(offsetPath, String(newOffset));
+
     const result = await runCli(["watch", specPath]);
-
     expect(result.stdout).toContain("Submit: Rewrite Requested");
     expect(result.stdout).toContain("fix this");
+  });
+
+  it("outputs new submit after a previous submit was already processed", async () => {
+    tmpDir = setupTempDir();
+    const { specPath, jsonlPath } = createSpecWithJsonl(tmpDir);
+
+    // Round 1
+    appendEvent(jsonlPath, { type: "comment", threadId: "x1", line: 3, author: "reviewer", text: "fix this", ts: 1 });
+    appendEvent(jsonlPath, { type: "resolve", threadId: "x1", author: "reviewer", ts: 2 });
+    appendEvent(jsonlPath, { type: "submit", author: "reviewer", ts: 3 });
+
+    // First watch consumes round 1 submit
+    await runCli(["watch", specPath]);
+
+    // Round 2 — reviewer adds new comment and submits again
+    appendEvent(jsonlPath, { type: "comment", threadId: "x2", line: 1, author: "reviewer", text: "also fix this", ts: 100 });
+    appendEvent(jsonlPath, { type: "resolve", threadId: "x2", author: "reviewer", ts: 101 });
+    appendEvent(jsonlPath, { type: "submit", author: "reviewer", ts: 102 });
+
+    // Second watch picks up round 2 comment first
+    const result2 = await runCli(["watch", specPath]);
+    expect(result2.stdout).toContain("also fix this");
   });
 
   it("submit takes priority over session-end in same batch", async () => {
