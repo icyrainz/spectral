@@ -218,11 +218,10 @@ export function createCommentInput(opts: CommentInputOptions): CommentInputOverl
       key.preventDefault();
       key.stopPropagation();
       const scrollAmount = Math.max(1, Math.floor(scrollBox.visibleHeight / 2));
-      const currentScroll = scrollBox.scrollTop;
       if (key.name === "d") {
-        scrollBox.scrollTo(currentScroll + scrollAmount);
+        scrollBox.scrollBy({ x: 0, y: scrollAmount });
       } else {
-        scrollBox.scrollTo(Math.max(0, currentScroll - scrollAmount));
+        scrollBox.scrollBy({ x: 0, y: -scrollAmount });
       }
       renderer.requestRender();
       return;
