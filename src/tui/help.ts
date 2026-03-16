@@ -50,10 +50,10 @@ export function createHelp(opts: {
   const dialog = createDialog({
     renderer,
     title: "Help",
-    width: "60%",
-    height: Math.min(34, renderer.height - 2),
+    width: "64%",
+    height: Math.min(32, renderer.height - 4),
     top: "10%",
-    left: "20%",
+    left: "18%",
     borderColor: theme.info,
     onDismiss: onClose,
     hints: HELP_HINTS,
@@ -92,6 +92,11 @@ export function createHelp(opts: {
     "  Esc       Clear search",
     "  ]t/[t     Next/prev thread",
     "  ]r/[r     Next/prev unread",
+    "  ]1/[1     Next/prev h1 heading",
+    "  ]2/[2     Next/prev h2 heading",
+    "  ]3/[3     Next/prev h3 heading",
+    "  ''        Jump to previous position",
+    "  H/M/L     Screen top/middle/bottom",
   ]);
 
   addHelpSection(dialog.content, renderer, "Review", [

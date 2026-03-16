@@ -31,10 +31,10 @@ export function createConfirm(opts: ConfirmOptions): ConfirmOverlay {
   const dialog = createDialog({
     renderer,
     title,
-    width: "50%",
+    width: "44%",
     height: 9,
-    top: "35%",
-    left: "25%",
+    top: "30%",
+    left: "28%",
     borderColor: theme.warning,
     onDismiss: onCancel,
     hints: CONFIRM_HINTS,

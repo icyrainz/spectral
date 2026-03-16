@@ -123,6 +123,21 @@ export async function runTui(
   // Command mode state
   let commandBuffer: string | null = null;
 
+  // Previous position for '' jump-back
+  let prevCursorLine: number = 1;
+  function savePrevPosition(): void {
+    prevCursorLine = state.cursorLine;
+  }
+
+  // Map visual row back to spec line number (for H/M/L)
+  function visualRowToSpecLine(targetRow: number): number {
+    for (let i = 0; i < state.specLines.length; i++) {
+      const row = i + countExtraVisualLines(state.specLines, i);
+      if (row >= targetRow) return i + 1;
+    }
+    return state.lineCount;
+  }
+
   // Active spec poll interval (for submit spinner leak prevention)
   let activeSpecPoll: ReturnType<typeof setInterval> | null = null;
 
@@ -203,6 +218,7 @@ export async function runTui(
     // :{N} — jump to line number
     const lineNum = parseInt(cmd, 10);
     if (!isNaN(lineNum) && lineNum > 0) {
+      savePrevPosition();
       state.cursorLine = Math.min(lineNum, state.lineCount);
       ensureCursorVisible();
       refreshPager();
@@ -271,6 +287,7 @@ export async function runTui(
       cursorLine: state.cursorLine,
       onResult: (lineNumber: number, query: string) => {
         searchQuery = query;
+        savePrevPosition();
         state.cursorLine = lineNumber;
         dismissOverlay();
         ensureCursorVisible();
@@ -289,6 +306,7 @@ export async function runTui(
       renderer,
       threads: state.threads,
       onSelect: (lineNumber: number) => {
+        savePrevPosition();
         state.cursorLine = lineNumber;
         dismissOverlay();
         ensureCursorVisible();
@@ -390,6 +408,16 @@ export async function runTui(
     { key: "[t", action: "prev-thread" },
     { key: "]r", action: "next-unread" },
     { key: "[r", action: "prev-unread" },
+    { key: "]1", action: "next-h1" },
+    { key: "[1", action: "prev-h1" },
+    { key: "]2", action: "next-h2" },
+    { key: "[2", action: "prev-h2" },
+    { key: "]3", action: "next-h3" },
+    { key: "[3", action: "prev-h3" },
+    { key: "''", action: "jump-back" },
+    { key: "H", action: "screen-top" },
+    { key: "M", action: "screen-middle" },
+    { key: "L", action: "screen-bottom" },
     { key: "zz", action: "center-cursor" },
     { key: "?", action: "help" },
     { key: "/", action: "search" },
@@ -512,11 +540,13 @@ export async function runTui(
           break;
         }
         case "goto-bottom":
+          savePrevPosition();
           state.cursorLine = state.lineCount;
           ensureCursorVisible();
           refreshPager();
           break;
         case "goto-top":
+          savePrevPosition();
           state.cursorLine = 1;
           ensureCursorVisible();
           refreshPager();
@@ -533,6 +563,7 @@ export async function runTui(
           if (searchQuery) {
             const match = findNextMatch(state.specLines, searchQuery, state.cursorLine, 1);
             if (match !== null) {
+              savePrevPosition();
               state.cursorLine = match;
               ensureCursorVisible();
             }
@@ -547,6 +578,7 @@ export async function runTui(
           if (searchQuery) {
             const match = findNextMatch(state.specLines, searchQuery, state.cursorLine, -1);
             if (match !== null) {
+              savePrevPosition();
               state.cursorLine = match;
               ensureCursorVisible();
             }
@@ -693,6 +725,7 @@ export async function runTui(
         case "next-thread": {
           const next = state.nextThread();
           if (next !== null) {
+            savePrevPosition();
             state.cursorLine = next;
             ensureCursorVisible();
             refreshPager();
@@ -706,6 +739,7 @@ export async function runTui(
         case "prev-thread": {
           const prev = state.prevThread();
           if (prev !== null) {
+            savePrevPosition();
             state.cursorLine = prev;
             ensureCursorVisible();
             refreshPager();
@@ -719,6 +753,7 @@ export async function runTui(
         case "next-unread": {
           const nextLine = state.nextUnreadThread();
           if (nextLine !== null) {
+            savePrevPosition();
             state.cursorLine = nextLine;
             ensureCursorVisible();
             refreshPager();
@@ -732,6 +767,7 @@ export async function runTui(
         case "prev-unread": {
           const prevLine = state.prevUnreadThread();
           if (prevLine !== null) {
+            savePrevPosition();
             state.cursorLine = prevLine;
             ensureCursorVisible();
             refreshPager();
@@ -740,6 +776,69 @@ export async function runTui(
             renderer.requestRender();
             setTimeout(() => { refreshPager(); }, 1500);
           }
+          break;
+        }
+        case "next-h1":
+        case "next-h2":
+        case "next-h3": {
+          const level = parseInt(action.slice(-1));
+          const next = state.nextHeading(level);
+          if (next !== null) {
+            savePrevPosition();
+            state.cursorLine = next;
+            ensureCursorVisible();
+            refreshPager();
+          } else {
+            setBottomBarMessage(bottomBar, ` No h${level} headings`);
+            renderer.requestRender();
+            setTimeout(() => { refreshPager(); }, 1500);
+          }
+          break;
+        }
+        case "prev-h1":
+        case "prev-h2":
+        case "prev-h3": {
+          const level = parseInt(action.slice(-1));
+          const prev = state.prevHeading(level);
+          if (prev !== null) {
+            savePrevPosition();
+            state.cursorLine = prev;
+            ensureCursorVisible();
+            refreshPager();
+          } else {
+            setBottomBarMessage(bottomBar, ` No h${level} headings`);
+            renderer.requestRender();
+            setTimeout(() => { refreshPager(); }, 1500);
+          }
+          break;
+        }
+        case "jump-back": {
+          const tmp = state.cursorLine;
+          state.cursorLine = prevCursorLine;
+          prevCursorLine = tmp;
+          ensureCursorVisible();
+          refreshPager();
+          break;
+        }
+        case "screen-top": {
+          const topRow = pager.scrollBox.scrollTop;
+          savePrevPosition();
+          state.cursorLine = visualRowToSpecLine(topRow);
+          refreshPager();
+          break;
+        }
+        case "screen-middle": {
+          const midRow = pager.scrollBox.scrollTop + Math.floor(pageSize() / 2);
+          savePrevPosition();
+          state.cursorLine = visualRowToSpecLine(midRow);
+          refreshPager();
+          break;
+        }
+        case "screen-bottom": {
+          const botRow = pager.scrollBox.scrollTop + pageSize() - 1;
+          savePrevPosition();
+          state.cursorLine = visualRowToSpecLine(botRow);
+          refreshPager();
           break;
         }
         case "help":

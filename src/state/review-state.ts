@@ -113,6 +113,36 @@ export class ReviewState {
     return this.threads.reduce((max, t) => (t.line > max.line ? t : max)).line;
   }
 
+  nextHeading(level: number): number | null {
+    const prefix = "#".repeat(level) + " ";
+    const guard = "#".repeat(level + 1);
+    for (let i = this.cursorLine; i < this.specLines.length; i++) {
+      const line = this.specLines[i];
+      if (line.startsWith(prefix) && !line.startsWith(guard)) return i + 1;
+    }
+    // Wrap: search from top
+    for (let i = 0; i < this.cursorLine - 1; i++) {
+      const line = this.specLines[i];
+      if (line.startsWith(prefix) && !line.startsWith(guard)) return i + 1;
+    }
+    return null;
+  }
+
+  prevHeading(level: number): number | null {
+    const prefix = "#".repeat(level) + " ";
+    const guard = "#".repeat(level + 1);
+    for (let i = this.cursorLine - 2; i >= 0; i--) {
+      const line = this.specLines[i];
+      if (line.startsWith(prefix) && !line.startsWith(guard)) return i + 1;
+    }
+    // Wrap: search from bottom
+    for (let i = this.specLines.length - 1; i >= this.cursorLine; i--) {
+      const line = this.specLines[i];
+      if (line.startsWith(prefix) && !line.startsWith(guard)) return i + 1;
+    }
+    return null;
+  }
+
   canApprove(): boolean {
     // No threads = clean approval (spec is good as-is)
     if (this.threads.length === 0) return true;

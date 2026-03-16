@@ -168,8 +168,10 @@ function createThreadView(
   const dialog = createDialog({
     renderer,
     title,
-    width: "80%",
-    height: "85%",
+    width: "70%",
+    height: "80%",
+    top: "8%",
+    left: "15%",
     borderColor: theme.blue,
     onDismiss: onCancel,
     hints: insertHints,
@@ -220,18 +222,29 @@ function createThreadView(
     scrollBox.add(renderMessage(msg));
   }
 
-  // --- Separator ---
-  const sep = new TextRenderable(renderer, {
-    content: "\u2500".repeat(40),
+  // --- Layout: pack bottom elements into a single container ---
+  // Outside tmux, opentui's ScrollBox expands over intermediate siblings.
+  // Keeping exactly 2 direct children (ScrollBox + bottomPanel) avoids the issue,
+  // matching the pattern that works in help/thread-list dialogs.
+  dialog.container.remove(dialog.hintBox.id);
+  const bottomPanel = new BoxRenderable(renderer, {
+    width: "100%",
+    height: 6, // separator(1) + textarea(4) + hints(1)
+    flexShrink: 0,
+    flexGrow: 0,
+    flexDirection: "column",
+  });
+  const sep = new BoxRenderable(renderer, {
     width: "100%",
     height: 1,
-    fg: theme.backgroundElement,
-    wrapMode: "none",
+    flexShrink: 0,
+    border: ["top"],
+    borderColor: theme.border,
   });
-  dialog.container.add(sep);
-
-  // --- Textarea (visible in both modes, focused only in insert) ---
-  dialog.container.add(textarea);
+  bottomPanel.add(sep);
+  bottomPanel.add(textarea);
+  bottomPanel.add(dialog.hintBox);
+  dialog.container.add(bottomPanel);
 
   // --- Mode helpers (need dialog.setHints available) ---
   function enterInsert(): void {

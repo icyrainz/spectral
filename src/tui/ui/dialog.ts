@@ -23,6 +23,7 @@ export interface DialogOptions {
 export interface DialogComponents {
   container: BoxRenderable;
   content: ScrollBoxRenderable;
+  hintBox: BoxRenderable;
   hintText: TextRenderable;
   setHints: (hints: Hint[]) => void;
   cleanup: () => void;
@@ -102,5 +103,5 @@ export function createDialog(opts: DialogOptions): DialogComponents {
     renderer.keyInput.off("keypress", keyHandler);
   }
 
-  return { container, content, hintText, setHints, cleanup };
+  return { container, content, hintBox, hintText, setHints, cleanup };
 }
