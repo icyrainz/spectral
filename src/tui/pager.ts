@@ -7,7 +7,7 @@ import {
   type CliRenderer,
 } from "@opentui/core";
 import { theme } from "./ui/theme";
-import { parseMarkdownLine, addSegments, collectTable, renderTableBorder, renderTableSeparator, renderTableRow, parseTableCells, type TableBlock } from "./ui/markdown";
+import { parseMarkdownLine, addSegments, collectTable, renderTableBorder, renderTableSeparator, renderTableRow, parseTableCells, type TableBlock, type StyledSegment } from "./ui/markdown";
 
 // --- Plain text builder (for tests) ---
 
@@ -54,7 +54,53 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
  * Line numbers and thread hints are dimmed.
  */
 /**
- * Word-wrap a string at the given width, breaking at word boundaries.
+ * Wrap pre-parsed markdown segments at the given width.
+ * Breaks at segment boundaries when possible, word boundaries within segments otherwise.
+ * Returns an array of segment arrays (one per visual line).
+ */
+function wrapSegments(segments: StyledSegment[], width: number): StyledSegment[][] {
+  if (width <= 0) return [segments];
+  // Check total length
+  let totalLen = 0;
+  for (const s of segments) totalLen += s.text.length;
+  if (totalLen <= width) return [segments];
+
+  const lines: StyledSegment[][] = [];
+  let curLine: StyledSegment[] = [];
+  let curWidth = 0;
+
+  for (const seg of segments) {
+    if (curWidth + seg.text.length <= width) {
+      curLine.push(seg);
+      curWidth += seg.text.length;
+      continue;
+    }
+    // Segment doesn't fit — break it at word boundaries
+    let remaining = seg.text;
+    while (remaining.length > 0) {
+      const avail = width - curWidth;
+      if (remaining.length <= avail) {
+        curLine.push({ ...seg, text: remaining });
+        curWidth += remaining.length;
+        break;
+      }
+      if (avail > 0) {
+        let breakAt = remaining.lastIndexOf(" ", avail);
+        if (breakAt <= 0) breakAt = avail; // hard break
+        curLine.push({ ...seg, text: remaining.slice(0, breakAt) });
+        remaining = remaining.slice(breakAt).replace(/^ /, "");
+      }
+      lines.push(curLine);
+      curLine = [];
+      curWidth = 0;
+    }
+  }
+  if (curLine.length > 0) lines.push(curLine);
+  return lines;
+}
+
+/**
+ * Word-wrap a raw string (for countExtraVisualLines estimation).
  */
 function wordWrap(text: string, width: number): string[] {
   if (width <= 0 || text.length <= width) return [text];
@@ -62,9 +108,9 @@ function wordWrap(text: string, width: number): string[] {
   let remaining = text;
   while (remaining.length > width) {
     let breakAt = remaining.lastIndexOf(" ", width);
-    if (breakAt <= 0) breakAt = width; // no space found — hard break
+    if (breakAt <= 0) breakAt = width;
     lines.push(remaining.slice(0, breakAt));
-    remaining = remaining.slice(breakAt).replace(/^ /, ""); // trim leading space on continuation
+    remaining = remaining.slice(breakAt).replace(/^ /, "");
   }
   if (remaining.length > 0) lines.push(remaining);
   return lines;
@@ -82,11 +128,17 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
   const contentWidth = wrapWidth && wrapWidth > gutterWidth ? wrapWidth - gutterWidth : 0;
 
   // Pre-scan for table blocks so we can calculate column widths
+  // Skip lines inside fenced code blocks — pipes in code are not tables
   const tableBlocks = new Map<number, TableBlock>();
+  let preScanCodeBlock = false;
   for (let i = 0; i < state.specLines.length; i++) {
+    if (state.specLines[i].trimStart().startsWith("```")) {
+      preScanCodeBlock = !preScanCodeBlock;
+      continue;
+    }
+    if (preScanCodeBlock) continue;
     if (state.specLines[i].trimStart().startsWith("|") && !tableBlocks.has(i)) {
       const block = collectTable(state.specLines, i);
-      // Mark all lines in this block
       for (let j = 0; j < block.lines.length; j++) {
         tableBlocks.set(i + j, block);
       }
@@ -199,21 +251,21 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
           lineNode.add(TextNodeRenderable.fromString(part, { fg: theme.text, bg: isCursor ? theme.backgroundElement : undefined }));
         }
       }
-    } else if (contentWidth > 0 && specText.length > contentWidth) {
-      // Wrap long lines — first chunk gets markdown, continuations get blank gutter + markdown
-      const chunks = wordWrap(specText, contentWidth);
-      const segments = parseMarkdownLine(chunks[0]);
-      addSegments(lineNode, segments, theme.text, isCursor ? theme.backgroundElement : undefined);
-      for (let c = 1; c < chunks.length; c++) {
-        lineNode.add(TextNodeRenderable.fromString("\n", {}));
-        lineNode.add(TextNodeRenderable.fromString(gutterBlank, { fg: theme.textDim }));
-        const contSegments = parseMarkdownLine(chunks[c]);
-        addSegments(lineNode, contSegments, theme.text, isCursor ? theme.backgroundElement : undefined);
-      }
     } else {
-      // Parse and render inline markdown
+      // Parse inline markdown, then wrap if needed
       const segments = parseMarkdownLine(specText);
-      addSegments(lineNode, segments, theme.text, isCursor ? theme.backgroundElement : undefined);
+      const bg = isCursor ? theme.backgroundElement : undefined;
+      if (contentWidth > 0 && specText.length > contentWidth) {
+        const wrapped = wrapSegments(segments, contentWidth);
+        addSegments(lineNode, wrapped[0], theme.text, bg);
+        for (let c = 1; c < wrapped.length; c++) {
+          lineNode.add(TextNodeRenderable.fromString("\n", {}));
+          lineNode.add(TextNodeRenderable.fromString(gutterBlank, { fg: theme.textDim }));
+          addSegments(lineNode, wrapped[c], theme.text, bg);
+        }
+      } else {
+        addSegments(lineNode, segments, theme.text, bg);
+      }
     }
 
     // Newline between lines (except last)
@@ -236,8 +288,14 @@ export function countExtraVisualLines(specLines: string[], cursorIndex: number, 
 
   let extra = 0;
   let i = 0;
+  let inCode = false;
   while (i < specLines.length) {
-    if (specLines[i].trimStart().startsWith("|")) {
+    if (specLines[i].trimStart().startsWith("```")) {
+      inCode = !inCode;
+      i++;
+      continue;
+    }
+    if (!inCode && specLines[i].trimStart().startsWith("|")) {
       const tableStart = i;
       while (i < specLines.length && specLines[i].trimStart().startsWith("|")) {
         i++;
@@ -250,8 +308,8 @@ export function countExtraVisualLines(specLines: string[], cursorIndex: number, 
       if (cursorIndex >= tableEnd) extra++;
       continue;
     }
-    // Word wrap: count extra continuation lines
-    if (contentWidth > 0 && i < cursorIndex && specLines[i].length > contentWidth) {
+    // Word wrap: count extra continuation lines (not in code blocks — those render unwrapped)
+    if (!inCode && contentWidth > 0 && i < cursorIndex && specLines[i].length > contentWidth) {
       extra += wordWrap(specLines[i], contentWidth).length - 1;
     }
     i++;

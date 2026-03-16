@@ -1,6 +1,7 @@
 import {
   BoxRenderable,
   InputRenderable,
+  InputRenderableEvents,
   TextRenderable,
   type CliRenderer,
   type KeyEvent,
@@ -12,6 +13,7 @@ export interface SearchOptions {
   specLines: string[];
   cursorLine: number;
   onResult: (lineNumber: number, query: string) => void;
+  onPreview?: (query: string | null) => void;
   onCancel: () => void;
 }
 
@@ -71,6 +73,14 @@ export function createSearch(opts: SearchOptions): SearchOverlay {
     input.focus();
     renderer.requestRender();
   }, 0);
+
+  // Incremental search — preview highlights after 3+ characters
+  if (opts.onPreview) {
+    input.on(InputRenderableEvents.INPUT, () => {
+      const raw = input.value.trim();
+      opts.onPreview!(raw.length >= 3 ? raw : null);
+    });
+  }
 
   // Key handler
   const keyHandler = (key: KeyEvent) => {

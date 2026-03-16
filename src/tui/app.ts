@@ -128,8 +128,17 @@ export async function runTui(
     buildTopBar(topBar, specFile, state, state.unreadCount(), specMtimeChanged);
     // Don't overwrite transient messages (welcome hint, warnings) during navigation
     if (!messageTimer) {
-      const hasThread = !!state.threadAtLine(state.cursorLine);
-      buildBottomBar(bottomBar, commandBuffer, hasThread);
+      const curThread = state.threadAtLine(state.cursorLine);
+      if (curThread && curThread.messages.length > 0 && commandBuffer === null) {
+        // Show thread preview in bottom bar
+        const first = curThread.messages[0].text.replace(/\n/g, " ");
+        const replies = curThread.messages.length - 1;
+        const preview = first.length > 60 ? first.slice(0, 59) + "\u2026" : first;
+        const replyStr = replies > 0 ? ` (${replies} repl${replies === 1 ? "y" : "ies"})` : "";
+        setBottomBarMessage(bottomBar, `${preview}${replyStr} [${curThread.status}]`);
+      } else {
+        buildBottomBar(bottomBar, commandBuffer, !!curThread);
+      }
     }
     renderer.requestRender();
   }
@@ -351,8 +360,11 @@ export async function runTui(
         searchQuery = query;
         savePrevPosition();
         state.cursorLine = lineNumber;
-        dismissOverlay();
         ensureCursorVisible();
+        dismissOverlay(); // calls refreshPager with cursor + scroll already set
+      },
+      onPreview: (query: string | null) => {
+        searchQuery = query;
         refreshPager();
       },
       onCancel: () => {

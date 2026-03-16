@@ -1,6 +1,6 @@
 {
   "name": "revspec",
-  "version": "0.8.4",
+  "version": "0.8.5",
   "description": "Terminal-based spec review tool with real-time AI conversation",
   "type": "module",
   "license": "MIT",
