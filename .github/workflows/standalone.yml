@@ -1,0 +1,31 @@
+name: Build Standalone
+
+on:
+  push:
+    tags:
+      - standalone
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: bun-linux-x64
+            artifact: revspec-linux-x64
+          - os: macos-latest
+            target: bun-darwin-arm64
+            artifact: revspec-darwin-arm64
+
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install
+      - run: bun build bin/revspec.ts --compile --target=${{ matrix.target }} --outfile=${{ matrix.artifact }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}

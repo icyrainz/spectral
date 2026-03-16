@@ -2,6 +2,7 @@
 import { existsSync } from "fs";
 import { resolve, basename, extname, dirname, join } from "path";
 import { runTui } from "../src/tui/app";
+import pkg from "../package.json";
 
 const args = process.argv.slice(2);
 const subcommand = args[0];
@@ -36,7 +37,6 @@ if (args.length === 0 || args.includes("--help") || args.includes("-h")) {
 }
 
 if (args.includes("--version") || args.includes("-v")) {
-  const pkg = await Bun.file(new URL("../package.json", import.meta.url)).json();
   console.log(`revspec ${pkg.version}`);
   process.exit(0);
 }
@@ -55,7 +55,6 @@ if (!existsSync(specPath)) {
 }
 
 // 2. Launch TUI
-const pkg = await Bun.file(new URL("../package.json", import.meta.url)).json();
 await runTui(specPath, pkg.version);
 
 process.exit(0);
