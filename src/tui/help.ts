@@ -54,7 +54,7 @@ export function createHelp(opts: {
     height: Math.min(32, renderer.height - 4),
     top: "10%",
     left: "18%",
-    borderColor: theme.info,
+    borderColor: theme.blue,
     onDismiss: onClose,
     hints: HELP_HINTS,
   });

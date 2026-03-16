@@ -32,7 +32,7 @@ export function createSpinner(opts: {
     backgroundColor: theme.backgroundPanel,
     border: true,
     borderStyle: "single",
-    borderColor: theme.blue,
+    borderColor: theme.mauve,
     title: " Submitting ",
     flexDirection: "column",
     paddingLeft: 2,

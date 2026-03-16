@@ -65,7 +65,7 @@ function createThreadView(
     focusedBackgroundColor: theme.backgroundPanel,
     focusedTextColor: theme.text,
     wrapMode: "word",
-    placeholder: "Press c to reply...",
+    placeholder: "Type your comment...",
     placeholderColor: theme.textDim,
     initialValue: "",
   });
@@ -251,6 +251,7 @@ function createThreadView(
     mode = "insert";
     textarea.focus();
     dialog.setHints(insertHints);
+    dialog.container.borderColor = theme.green;
     renderer.requestRender();
   }
 
@@ -258,6 +259,7 @@ function createThreadView(
     mode = "normal";
     textarea.blur();
     dialog.setHints(normalHints);
+    dialog.container.borderColor = theme.blue;
     renderer.requestRender();
   }
 

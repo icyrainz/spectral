@@ -92,7 +92,7 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
     height: "50%",
     top: "20%",
     left: "22%",
-    borderColor: theme.mauve,
+    borderColor: theme.blue,
     onDismiss: onCancel,
     hints: THREAD_LIST_HINTS,
   });
@@ -177,7 +177,7 @@ export function createThreadList(opts: ThreadListOptions): ThreadListOverlay {
       return;
     }
     if (filtered.length === 0) return;
-    if (key.name === "return" || key.name === "y") {
+    if (key.name === "return") {
       key.preventDefault();
       key.stopPropagation();
       const selected = select.getSelectedOption();

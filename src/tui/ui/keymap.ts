@@ -36,7 +36,7 @@ export const THREAD_INSERT_HINTS: Hint[] = [
 
 export const THREAD_LIST_HINTS: Hint[] = [
   { key: "j/k", action: "navigate" },
-  { key: "y/Enter", action: "jump" },
+  { key: "Enter", action: "jump" },
   { key: "Ctrl+f", action: "filter" },
   { key: "q/Esc", action: "close" },
 ];
@@ -52,5 +52,5 @@ export const HELP_HINTS: Hint[] = [
 
 export const CONFIRM_HINTS: Hint[] = [
   { key: "y/Enter", action: "yes" },
-  { key: "q/Esc", action: "no" },
+  { key: "q/Esc", action: "cancel" },
 ];

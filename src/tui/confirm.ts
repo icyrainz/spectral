@@ -35,7 +35,7 @@ export function createConfirm(opts: ConfirmOptions): ConfirmOverlay {
     height: 9,
     top: "30%",
     left: "28%",
-    borderColor: theme.warning,
+    borderColor: theme.mauve,
     onDismiss: onCancel,
     hints: CONFIRM_HINTS,
   });

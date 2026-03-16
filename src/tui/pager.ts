@@ -127,7 +127,7 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
     // Gutter: cursor + indicator + line number (dimmed)
     lineNode.add(TextNodeRenderable.fromString(
       `${prefix}`,
-      { fg: isCursor ? theme.text : theme.textDim, bg: isCursor ? theme.backgroundElement : undefined }
+      { fg: isCursor ? theme.yellow : theme.textDim, bg: isCursor ? theme.backgroundElement : undefined }
     ));
     lineNode.add(TextNodeRenderable.fromString(
       indicator,

@@ -124,6 +124,15 @@ export async function runTui(
   // Command mode state
   let commandBuffer: string | null = null;
 
+  // Transient message timer — prevents stale timeouts from clobbering each other
+  let messageTimer: ReturnType<typeof setTimeout> | null = null;
+  function showTransient(message: string, icon?: import("./status-bar").MessageIcon, ms = 1500): void {
+    if (messageTimer) clearTimeout(messageTimer);
+    setBottomBarMessage(bottomBar, message, icon);
+    renderer.requestRender();
+    messageTimer = setTimeout(() => { messageTimer = null; refreshPager(); }, ms);
+  }
+
   // Jump list — mirrors vim's :jumps behavior.
   // pushJump() is called BEFORE each big jump to record the departure position.
   // Ctrl+O traverses backward, Ctrl+I forward. Making a new jump while in the
@@ -219,19 +228,19 @@ export async function runTui(
 
   // Process command buffer input
   function processCommand(cmd: string, resolve: () => void): "exit" | "stay" {
-    if (cmd === "q" || cmd === "wq" || cmd === "qw") {
-      const { open, pending } = state.activeThreadCount();
-      const total = open + pending;
-      if (total > 0) {
-        setBottomBarMessage(bottomBar, `${total} unresolved thread(s). Use :q! to force quit`, "warn");
-        renderer.requestRender();
-        setTimeout(() => { refreshPager(); }, 2000);
-        return "stay";
-      }
+    const forceQuit = ["q!", "qa!", "wq!", "wqa!", "qw!", "qwa!"];
+    const safeQuit = ["q", "qa", "wq", "wqa", "qw", "qwa"];
+    if (forceQuit.includes(cmd)) {
       exitTui(resolve, "session-end");
       return "exit";
     }
-    if (cmd === "q!") {
+    if (safeQuit.includes(cmd)) {
+      const { open, pending } = state.activeThreadCount();
+      const total = open + pending;
+      if (total > 0) {
+        showTransient(`${total} unresolved thread(s). Use :q! to force quit`, "warn", 2000);
+        return "stay";
+      }
       exitTui(resolve, "session-end");
       return "exit";
     }
@@ -244,9 +253,7 @@ export async function runTui(
       refreshPager();
       return "stay";
     }
-    setBottomBarMessage(bottomBar, `Unknown command: ${cmd}`, "warn");
-    renderer.requestRender();
-    setTimeout(() => { refreshPager(); }, 1500);
+    showTransient(`Unknown command: ${cmd}`, "warn");
     return "stay";
   }
 
@@ -448,7 +455,7 @@ export async function runTui(
 
   refreshPager();
   if (state.threads.length === 0) {
-    setBottomBarMessage(bottomBar, "Navigate to a line and press c to start reviewing", "info");
+    setBottomBarMessage(bottomBar, "Navigate to a line and press c to comment  |  ? for help", "info");
     renderer.requestRender();
   }
   renderer.start();
@@ -626,17 +633,13 @@ export async function runTui(
               ensureCursorVisible();
               refreshPager();
               if (wrapped) {
-                setBottomBarMessage(bottomBar, "Search wrapped to top", "info");
-                renderer.requestRender();
-                setTimeout(() => { refreshPager(); }, 1200);
+                showTransient("Search wrapped to top", "info", 1200);
               }
             } else {
               refreshPager();
             }
           } else {
-            setBottomBarMessage(bottomBar, "No active search \u2014 use / to search");
-            renderer.requestRender();
-            setTimeout(() => { refreshPager(); }, 1500);
+            showTransient("No active search \u2014 use / to search");
           }
           break;
         case "search-prev":
@@ -649,17 +652,13 @@ export async function runTui(
               ensureCursorVisible();
               refreshPager();
               if (wrapped) {
-                setBottomBarMessage(bottomBar, "Search wrapped to bottom", "info");
-                renderer.requestRender();
-                setTimeout(() => { refreshPager(); }, 1200);
+                showTransient("Search wrapped to bottom", "info", 1200);
               }
             } else {
               refreshPager();
             }
           } else {
-            setBottomBarMessage(bottomBar, "No active search \u2014 use / to search");
-            renderer.requestRender();
-            setTimeout(() => { refreshPager(); }, 1500);
+            showTransient("No active search \u2014 use / to search");
           }
           break;
         case "comment":
@@ -676,15 +675,11 @@ export async function runTui(
             state.markRead(thread.id);
             appendEvent(jsonlPath, { type: wasResolved ? "unresolve" : "resolve", threadId: thread.id, author: "reviewer", ts: Date.now() });
             refreshPager();
-            setBottomBarMessage(bottomBar,
+            showTransient(
               wasResolved ? `Reopened thread #${thread.id}` : `Resolved thread #${thread.id}`,
               "success");
-            renderer.requestRender();
-            setTimeout(() => { refreshPager(); }, 1500);
           } else {
-            setBottomBarMessage(bottomBar, "No thread on this line");
-            renderer.requestRender();
-            setTimeout(() => { refreshPager(); }, 1500);
+            showTransient("No thread on this line");
           }
           break;
         }
@@ -696,17 +691,13 @@ export async function runTui(
             appendEvent(jsonlPath, { type: "resolve", threadId: t.id, author: "reviewer", ts: Date.now() });
           }
           refreshPager();
-          setBottomBarMessage(bottomBar, `Resolved ${pending} pending thread(s)`, "success");
-          renderer.requestRender();
-          setTimeout(() => { refreshPager(); }, 1500);
+          showTransient(`Resolved ${pending} pending thread(s)`, "success");
           break;
         }
         case "delete-draft": {
           const thread = state.threadAtLine(state.cursorLine);
           if (!thread) {
-            setBottomBarMessage(bottomBar, "No thread on this line");
-            renderer.requestRender();
-            setTimeout(() => { refreshPager(); }, 1500);
+            showTransient("No thread on this line");
             break;
           }
           const deleteOverlay = createConfirm({
@@ -718,9 +709,7 @@ export async function runTui(
               state.deleteThread(thread.id);
               appendEvent(jsonlPath, { type: "delete", threadId: thread.id, author: "reviewer", ts: Date.now() });
               refreshPager();
-              setBottomBarMessage(bottomBar, `Deleted thread #${thread.id}`, "success");
-              renderer.requestRender();
-              setTimeout(() => { refreshPager(); }, 1500);
+              showTransient(`Deleted thread #${thread.id}`, "success");
             },
             onCancel: () => {
               dismissOverlay();
@@ -751,9 +740,7 @@ export async function runTui(
                 clearInterval(activeSpecPoll!);
                 activeSpecPoll = null;
                 dismissOverlay();
-                setBottomBarMessage(bottomBar, "Agent did not update spec. Press S to retry.", "warn");
-                renderer.requestRender();
-                setTimeout(() => { refreshPager(); }, 3000);
+                showTransient("AI did not update the spec. Press S to resubmit.", "warn", 3000);
               },
             });
             showOverlay(spinnerOverlay);
@@ -774,9 +761,7 @@ export async function runTui(
                   searchQuery = null;
                   ensureCursorVisible();
                   refreshPager();
-                  setBottomBarMessage(bottomBar, "Spec rewritten \u2014 review cleared", "success");
-                  renderer.requestRender();
-                  setTimeout(() => { refreshPager(); }, 2500);
+                  showTransient("Spec rewritten \u2014 review cleared", "success", 2500);
                 }
               } catch {}
             }, 500);
@@ -806,9 +791,7 @@ export async function runTui(
             ensureCursorVisible();
             refreshPager();
           } else {
-            setBottomBarMessage(bottomBar, "No threads");
-            renderer.requestRender();
-            setTimeout(() => { refreshPager(); }, 1500);
+            showTransient("No threads");
           }
           break;
         }
@@ -820,9 +803,7 @@ export async function runTui(
             ensureCursorVisible();
             refreshPager();
           } else {
-            setBottomBarMessage(bottomBar, "No threads");
-            renderer.requestRender();
-            setTimeout(() => { refreshPager(); }, 1500);
+            showTransient("No threads");
           }
           break;
         }
@@ -834,9 +815,7 @@ export async function runTui(
             ensureCursorVisible();
             refreshPager();
           } else {
-            setBottomBarMessage(bottomBar, "No unread replies");
-            renderer.requestRender();
-            setTimeout(() => { refreshPager(); }, 1500);
+            showTransient("No unread replies");
           }
           break;
         }
@@ -848,9 +827,7 @@ export async function runTui(
             ensureCursorVisible();
             refreshPager();
           } else {
-            setBottomBarMessage(bottomBar, "No unread replies");
-            renderer.requestRender();
-            setTimeout(() => { refreshPager(); }, 1500);
+            showTransient("No unread replies");
           }
           break;
         }
@@ -865,9 +842,7 @@ export async function runTui(
             ensureCursorVisible();
             refreshPager();
           } else {
-            setBottomBarMessage(bottomBar, `No h${level} headings`);
-            renderer.requestRender();
-            setTimeout(() => { refreshPager(); }, 1500);
+            showTransient(`No h${level} headings`);
           }
           break;
         }
@@ -882,9 +857,7 @@ export async function runTui(
             ensureCursorVisible();
             refreshPager();
           } else {
-            setBottomBarMessage(bottomBar, `No h${level} headings`);
-            renderer.requestRender();
-            setTimeout(() => { refreshPager(); }, 1500);
+            showTransient(`No h${level} headings`);
           }
           break;
         }
@@ -931,6 +904,7 @@ export async function runTui(
           showSearchOverlay();
           break;
         case "command-mode":
+          if (messageTimer) { clearTimeout(messageTimer); messageTimer = null; }
           commandBuffer = "";
           refreshPager();
           break;
