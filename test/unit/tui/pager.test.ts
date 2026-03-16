@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { buildPagerContent } from "../../../src/tui/pager";
+import { buildPagerContent, countExtraVisualLines } from "../../../src/tui/pager";
 import { ReviewState } from "../../../src/state/review-state";
 import type { Thread } from "../../../src/protocol/types";
 
@@ -156,4 +156,67 @@ describe("buildPagerContent", () => {
     expect(lines[1]).not.toContain(">>");
   });
 
+});
+
+describe("countExtraVisualLines — table borders", () => {
+  it("counts top and bottom borders for a table outside code blocks", () => {
+    const specLines = [
+      "Some text",
+      "| A | B |",
+      "| --- | --- |",
+      "| 1 | 2 |",
+      "End text",
+    ];
+    // Cursor past the table — should count both top and bottom borders
+    const extra = countExtraVisualLines(specLines, 4);
+    expect(extra).toBe(2);
+  });
+
+  it("does not count borders for pipe lines inside a fenced code block", () => {
+    const specLines = [
+      "Some text",
+      "```",
+      "| not | a table |",
+      "| just | code |",
+      "```",
+      "End text",
+    ];
+    // Cursor past everything — code block pipes should not produce table borders
+    const extra = countExtraVisualLines(specLines, 5);
+    expect(extra).toBe(0);
+  });
+
+  it("counts borders for table after a code block closes", () => {
+    const specLines = [
+      "```",
+      "| code | line |",
+      "```",
+      "| A | B |",
+      "| --- | --- |",
+      "| 1 | 2 |",
+      "End",
+    ];
+    // Cursor past everything — only the real table (lines 3-5) gets borders
+    const extra = countExtraVisualLines(specLines, 6);
+    expect(extra).toBe(2);
+  });
+
+  it("handles mixed code blocks and tables", () => {
+    const specLines = [
+      "# Header",
+      "```",
+      "x | y | z",
+      "```",
+      "| Col1 | Col2 |",
+      "| --- | --- |",
+      "| val1 | val2 |",
+      "```",
+      "a | b | c",
+      "```",
+      "Done",
+    ];
+    // Cursor at end — only lines 4-6 form a real table
+    const extra = countExtraVisualLines(specLines, 10);
+    expect(extra).toBe(2);
+  });
 });
