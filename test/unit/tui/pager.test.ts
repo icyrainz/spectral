@@ -46,7 +46,7 @@ describe("buildPagerContent", () => {
     const content = buildPagerContent(state);
     const lines = content.split("\n");
 
-    expect(lines[1]).toContain("\u258c");
+    expect(lines[1]).toContain("\u2588");
   });
 
   it("shows gutter indicator for pending threads", () => {
@@ -54,15 +54,15 @@ describe("buildPagerContent", () => {
     const content = buildPagerContent(state);
     const lines = content.split("\n");
 
-    expect(lines[1]).toContain("\u258c");
+    expect(lines[1]).toContain("\u2588");
   });
 
-  it("shows checkmark for resolved threads", () => {
+  it("shows gutter indicator for resolved threads", () => {
     const state = new ReviewState(SPEC, [makeThread("t1", 2, "resolved")]);
     const content = buildPagerContent(state);
     const lines = content.split("\n");
 
-    expect(lines[1]).toContain("=");
+    expect(lines[1]).toContain("\u2588");
   });
 
   it("shows gutter indicator for outdated threads", () => {
@@ -70,10 +70,10 @@ describe("buildPagerContent", () => {
     const content = buildPagerContent(state);
     const lines = content.split("\n");
 
-    expect(lines[1]).toContain("\u258c");
+    expect(lines[1]).toContain("\u2588");
   });
 
-  it("shows different icons for different statuses", () => {
+  it("shows indicator for all statuses", () => {
     const state = new ReviewState(SPEC, [
       makeThread("t1", 1, "open"),
       makeThread("t2", 2, "pending"),
@@ -83,10 +83,10 @@ describe("buildPagerContent", () => {
     const content = buildPagerContent(state);
     const lines = content.split("\n");
 
-    expect(lines[0]).toContain("\u258c");
-    expect(lines[1]).toContain("\u258c");
-    expect(lines[2]).toContain("=");
-    expect(lines[3]).toContain("\u258c");
+    expect(lines[0]).toContain("\u2588");
+    expect(lines[1]).toContain("\u2588");
+    expect(lines[2]).toContain("\u2588");
+    expect(lines[3]).toContain("\u2588");
   });
 
   it("does not show inline comment preview (removed)", () => {
@@ -99,7 +99,7 @@ describe("buildPagerContent", () => {
     const lines = content.split("\n");
 
     // Only gutter indicator, no inline text preview
-    expect(lines[1]).toContain("\u258c");
+    expect(lines[1]).toContain("\u2588");
     expect(lines[1]).not.toContain("My response");
   });
 

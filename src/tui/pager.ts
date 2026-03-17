@@ -30,14 +30,7 @@ export function buildPagerContent(state: ReviewState, searchQuery?: string | nul
     }
     let indicator = " ";
     if (thread) {
-      const isUnread = unreadThreadIds && unreadThreadIds.has(thread.id);
-      if (isUnread) {
-        indicator = "\u2588";
-      } else if (thread.status === "resolved") {
-        indicator = "=";
-      } else {
-        indicator = "\u258c";
-      }
+      indicator = "\u2588"; // █ full block for all statuses
     }
     const numStr = String(lineNum);
     const padded = " ".repeat(numWidth - numStr.length) + numStr;
@@ -156,20 +149,18 @@ export function buildPagerNodes(lineNode: TextRenderable, state: ReviewState, se
     const prefix = isCursor ? ">" : " ";
     const specText = state.specLines[i];
 
-    // Thread indicator — gutter bar on the left
+    // Thread indicator — gutter bar on the left (all █, color-coded)
     let indicator = " ";
     let indicatorColor: string = theme.textDim;
     if (thread) {
+      indicator = "\u2588"; // █ full block
       const isUnread = unreadThreadIds && unreadThreadIds.has(thread.id);
       if (isUnread) {
-        indicator = "\u2588"; // █ full block — unread reply
         indicatorColor = theme.yellow;
       } else if (thread.status === "resolved") {
-        indicator = "="; // resolved
         indicatorColor = theme.green;
       } else {
-        indicator = "\u258c"; // ▌ half block — has thread
-        indicatorColor = theme.blue;
+        indicatorColor = theme.text; // open — white
       }
     }
 

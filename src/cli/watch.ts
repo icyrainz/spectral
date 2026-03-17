@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, unlinkSync, renameSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, unlinkSync, renameSync, statSync } from "fs";
 import { watch as fsWatch } from "fs";
 import { resolve, dirname, basename, join } from "path";
 import {
@@ -67,6 +67,17 @@ export async function runWatch(specFile: string): Promise<void> {
         lastSubmitTs = parsedTs;
       }
     }
+  }
+
+  // Reset offset if JSONL was deleted/recreated/truncated (file smaller than offset)
+  if (existsSync(jsonlPath)) {
+    if (offset > statSync(jsonlPath).size) {
+      offset = 0;
+      lastSubmitTs = 0;
+    }
+  } else {
+    offset = 0;
+    lastSubmitTs = 0;
   }
 
   // Read spec lines for context

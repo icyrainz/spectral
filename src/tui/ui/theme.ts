@@ -2,7 +2,7 @@ export const theme = {
   // Surfaces
   base: undefined,
   backgroundPanel: "#313244",
-  backgroundElement: undefined,
+  backgroundElement: "#313244",
 
   // Text hierarchy
   text: "#cdd6f4",
@@ -28,10 +28,10 @@ export const theme = {
 } as const;
 
 export const STATUS_ICONS: Record<string, string> = {
-  open: "\u258c",     // ▌ half block
-  pending: "\u2588",  // █ full block
-  resolved: "=",
-  outdated: "-",
+  open: "\u2588",     // █ full block — white
+  pending: "\u2588",  // █ full block — yellow (unread)
+  resolved: "\u2588", // █ full block — green
+  outdated: "\u2588", // █ full block — dim
 };
 
 export const SPLIT_BORDER = {

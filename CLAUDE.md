@@ -25,7 +25,7 @@
 - Thread popup uses vim-style normal/insert modes (blur textarea in normal)
 - Hint bars use `[key] action` bracket format — all labels defined in `src/tui/ui/keymap.ts`
 - Consistent dismiss/confirm keys: `y/Enter` to confirm, `q/Esc` to dismiss (all popups)
-- No inline comment previews in pager — gutter indicators only: ▌ active thread, █ unread AI reply, = resolved
+- No inline comment previews in pager — gutter indicators only: █ white=open, █ yellow=unread, █ green=resolved
 - Thread IDs use nanoid (8-char alphanumeric) — no sequential t1/t2
 - No review JSON — JSONL is the single source of truth
 - `submit` events in JSONL act as round delimiters
